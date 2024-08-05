@@ -181,6 +181,8 @@ int main(int argc, char* argv[])
   QObject::connect(QAbstractEventDispatcher::instance(), &QAbstractEventDispatcher::aboutToBlock,
                    &app, &Core::HostDispatchJobs);
 
+  app.setFont(QFont(QStringLiteral("Helvetica"), 14));
+
   std::optional<std::string> save_state_path;
   if (options.is_set("save_state"))
   {

@@ -515,6 +515,10 @@ void MainWindow::CreateComponents()
           &MemoryWidget::SetAddress);
   connect(m_cheats_manager, &CheatsManager::ShowMemory, m_memory_widget, &MemoryWidget::SetAddress);
   connect(m_cheats_manager, &CheatsManager::RequestWatch, request_watch);
+
+  connect(m_code_widget, &CodeWidget::PlayPressed, this, [this]() { Play(); });
+  connect(m_code_widget, &CodeWidget::PausePressed, this, &MainWindow::Pause);
+  connect(m_code_widget, &CodeWidget::StopPressed, this, &MainWindow::RequestStop);
 }
 
 void MainWindow::ConnectMenuBar()
@@ -683,15 +687,10 @@ void MainWindow::ConnectHotkeys()
 void MainWindow::ConnectToolBar()
 {
   addToolBar(m_tool_bar);
+  
+  //connect(m_tool_bar, &ToolBar::RefreshPressed, this, &MainWindow::RefreshGameList);
 
-  connect(m_tool_bar, &ToolBar::OpenPressed, this, &MainWindow::Open);
-  connect(m_tool_bar, &ToolBar::RefreshPressed, this, &MainWindow::RefreshGameList);
-
-  connect(m_tool_bar, &ToolBar::PlayPressed, this, [this]() { Play(); });
-  connect(m_tool_bar, &ToolBar::PausePressed, this, &MainWindow::Pause);
-  connect(m_tool_bar, &ToolBar::StopPressed, this, &MainWindow::RequestStop);
   connect(m_tool_bar, &ToolBar::FullScreenPressed, this, &MainWindow::FullScreen);
-  connect(m_tool_bar, &ToolBar::ScreenShotPressed, this, &MainWindow::ScreenShot);
   connect(m_tool_bar, &ToolBar::SettingsPressed, this, &MainWindow::ShowSettingsWindow);
   connect(m_tool_bar, &ToolBar::ControllersPressed, this, &MainWindow::ShowControllersWindow);
   connect(m_tool_bar, &ToolBar::GraphicsPressed, this, &MainWindow::ShowGraphicsWindow);
@@ -700,14 +699,6 @@ void MainWindow::ConnectToolBar()
   connect(m_tool_bar, &ToolBar::ViewGeckoCodes, this, &MainWindow::ShowGeckoCodes);
   connect(m_tool_bar, &ToolBar::ViewLocalPlayers, this, &MainWindow::ShowLocalPlayersWindow);
   connect(m_tool_bar, &ToolBar::DiscordPressed, this, &MainWindow::ShowDiscordMenu);
-
-
-  connect(m_tool_bar, &ToolBar::StepPressed, m_code_widget, &CodeWidget::Step);
-  connect(m_tool_bar, &ToolBar::StepOverPressed, m_code_widget, &CodeWidget::StepOver);
-  connect(m_tool_bar, &ToolBar::StepOutPressed, m_code_widget, &CodeWidget::StepOut);
-  connect(m_tool_bar, &ToolBar::SkipPressed, m_code_widget, &CodeWidget::Skip);
-  connect(m_tool_bar, &ToolBar::ShowPCPressed, m_code_widget, &CodeWidget::ShowPC);
-  connect(m_tool_bar, &ToolBar::SetPCPressed, m_code_widget, &CodeWidget::SetPC);
 }
 
 void MainWindow::ConnectGameList()

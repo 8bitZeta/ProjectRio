@@ -1,7 +1,7 @@
 #!/bin/bash -e
 # build-linux.sh
 
-CMAKE_FLAGS='-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DLINUX_LOCAL_DEV=true -DCMAKE_BUILD_TYPE=Release'
+CMAKE_FLAGS='-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DLINUX_LOCAL_DEV=true -DCMAKE_BUILD_TYPE=Release -GNinja'
 
 DATA_SYS_PATH="./Data/Sys/"
 BINARY_PATH="./build/Binaries/"
@@ -14,7 +14,7 @@ mkdir -p build
 (
     cd ./build
     cmake .. ${CMAKE_FLAGS}
-    make -j$(nproc)
+    ninja -j$(nproc)
 )
 
 # Copy the Sys folder in

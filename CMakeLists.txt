@@ -738,7 +738,7 @@ if(NOT ENABLE_QT)
   set(USE_MGBA 0)
 endif()
 if(USE_MGBA)
-  dolphin_find_optional_system_library(LIBMGBA Externals/mGBA)
+  dolphin_find_optional_system_library_pkgconfig(LIBMGBA libmgba<0.10.5 mGBA::mGBA Externals/mGBA)
 endif()
 
 find_package(SYSTEMD)

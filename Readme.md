@@ -8,6 +8,10 @@ of the GNU General Public License, version 2 or later (GPLv2+).
 
 Please read the [FAQ](https://dolphin-emu.org/docs/faq/) before using Dolphin.
 
+<!-- Project Rio should rewrite their instructions to differentiate themselves from Vanilla Dolphin but I digress -->
+
+This is a fork of [Project Rio](https://www.projectrio.online/) that aims to fix bugs that occur when building on Linux
+
 ## System Requirements
 
 ### Desktop
@@ -88,6 +92,10 @@ application bundle using the following steps:
 Doing this is more complex as it requires installation of library dependencies for both x64 and ARM (or universal library
 equivalents) and may require specifying additional arguments to point to relevant library locations. 
 Execute BuildMacOSUniversalBinary.py --help for more details.  
+
+### Linux Automatic Build Script
+
+`build-linux.sh` is a script that will automatically build the project for you.  After pulling the required submodules, you can simply run this script, run `./build-linux.sh`.  A launcher shortcut named `ProjectRio.desktop` will be placed in `~/.local/share/applications/` if you would like to open it through your launcher, otherwise the binary can be found at `~/.local/share/project-rio/dolphin-emu`
 
 ### Linux Global Build Steps:
 

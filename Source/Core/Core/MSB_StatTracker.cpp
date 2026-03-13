@@ -1303,12 +1303,12 @@ std::string StatTracker::getHUDJSON(std::string in_event_num, Event& in_curr_eve
     {
         auto it0 = cLogoIdToTeamName.find(m_game_info.team0_logo);
         std::string name0 = (it0 != cLogoIdToTeamName.end()) ? it0->second : "Unknown";
-        json_stream << "  \"Team 0 Name\": \""  << name0 << "\",\n";
+        json_stream << "  \"Away Team Name\": \""  << name0 << "\",\n";
     }
     {
         auto it1 = cLogoIdToTeamName.find(m_game_info.team1_logo);
         std::string name1 = (it1 != cLogoIdToTeamName.end()) ? it1->second : "Unknown";
-        json_stream << "  \"Team 1 Name\": \""  << name1 << "\",\n";
+        json_stream << "  \"Home Team Name\": \""  << name1 << "\",\n";
     }
     json_stream << "  \"Event Num\": \""             << in_event_num << "\",\n";
     json_stream << "  \"Away Player\": \""           << m_game_info.getAwayTeamPlayer().GetUsername() << "\",\n";

@@ -1313,6 +1313,8 @@ std::string StatTracker::getHUDJSON(std::string in_event_num, Event& in_curr_eve
     json_stream << "  \"Event Num\": \""             << in_event_num << "\",\n";
     json_stream << "  \"Away Player\": \""           << m_game_info.getAwayTeamPlayer().GetUsername() << "\",\n";
     json_stream << "  \"Home Player\": \""           << m_game_info.getHomeTeamPlayer().GetUsername() << "\",\n";
+    json_stream << "  \"Away Port\": "               << std::to_string(m_game_info.away_port) << ",\n";
+    json_stream << "  \"Home Port\": "               << std::to_string(m_game_info.home_port) << ",\n";
     json_stream << "  \"Inning\": "                  << std::to_string(in_curr_event.inning) << ",\n";
     json_stream << "  \"Half Inning\": "             << std::to_string(in_curr_event.half_inning) << ",\n";
     json_stream << "  \"Away Score\": "              << std::dec << in_curr_event.away_score << ",\n";

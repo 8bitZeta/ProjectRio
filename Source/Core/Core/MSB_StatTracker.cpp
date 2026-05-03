@@ -469,7 +469,8 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     m_event_state = EVENT_STATE::GAME_OVER;
                     std::cout << "Logging Final Result\n" << "Game Over\n\n";
                 }
-                else if ((m_game_info.previous_state.value().balls < 4 || m_game_info.previous_state.value().strikes < 3) && m_game_info.getCurrentEvent().result_of_atbat == 0) {
+                else if ((m_game_info.getCurrentEvent().outs + m_game_info.getCurrentEvent().num_outs_during_play.get_value() < 3) &&
+                         m_game_info.getCurrentEvent().result_of_atbat == 0) {
                     ++m_game_info.event_num;
                     m_event_state = EVENT_STATE::INIT_EVENT;
                     std::cout << "Logging Final Result\n" << "Starting next pitch of AB\n\n";

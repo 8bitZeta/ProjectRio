@@ -8,10 +8,6 @@ of the GNU General Public License, version 2 or later (GPLv2+).
 
 Please read the [FAQ](https://dolphin-emu.org/docs/faq/) before using Dolphin.
 
-<!-- Project Rio should rewrite their instructions to differentiate themselves from Vanilla Dolphin but I digress -->
-
-This is a fork of [Project Rio](https://www.projectrio.online/) that aims to fix bugs that occur when building on Linux
-
 ## System Requirements
 
 ### Desktop

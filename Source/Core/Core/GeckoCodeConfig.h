@@ -197,12 +197,6 @@ E2000001 00000000
 00361C14 00010001
 *All mingames, stadiums, characters, and star characters are unlocked.
 
-+$Boot to Main Menu [LittleCoaks]
-280e877C 00000000
-0463f964 38600005
-E2000001 00000000
-*Skips the opening cutscenes and stars the game on the main menu. Does not load in memory card.
-
 +$Default Mercy On [LittleCoaks]
 040498DC 9867003F
 *Mercy defaults to on when starting a game

@@ -469,7 +469,8 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     m_event_state = EVENT_STATE::GAME_OVER;
                     std::cout << "Logging Final Result\n" << "Game Over\n\n";
                 }
-                else if ((m_game_info.previous_state.value().balls < 4 || m_game_info.previous_state.value().strikes < 3) && m_game_info.getCurrentEvent().result_of_atbat == 0) {
+                else if ((m_game_info.getCurrentEvent().outs + m_game_info.getCurrentEvent().num_outs_during_play.get_value() < 3) &&
+                         m_game_info.getCurrentEvent().result_of_atbat == 0) {
                     ++m_game_info.event_num;
                     m_event_state = EVENT_STATE::INIT_EVENT;
                     std::cout << "Logging Final Result\n" << "Starting next pitch of AB\n\n";
@@ -1303,16 +1304,18 @@ std::string StatTracker::getHUDJSON(std::string in_event_num, Event& in_curr_eve
     {
         auto it0 = cLogoIdToTeamName.find(m_game_info.team0_logo);
         std::string name0 = (it0 != cLogoIdToTeamName.end()) ? it0->second : "Unknown";
-        json_stream << "  \"Team 0 Name\": \""  << name0 << "\",\n";
+        json_stream << "  \"Away Team Name\": \""  << name0 << "\",\n";
     }
     {
         auto it1 = cLogoIdToTeamName.find(m_game_info.team1_logo);
         std::string name1 = (it1 != cLogoIdToTeamName.end()) ? it1->second : "Unknown";
-        json_stream << "  \"Team 1 Name\": \""  << name1 << "\",\n";
+        json_stream << "  \"Home Team Name\": \""  << name1 << "\",\n";
     }
     json_stream << "  \"Event Num\": \""             << in_event_num << "\",\n";
     json_stream << "  \"Away Player\": \""           << m_game_info.getAwayTeamPlayer().GetUsername() << "\",\n";
     json_stream << "  \"Home Player\": \""           << m_game_info.getHomeTeamPlayer().GetUsername() << "\",\n";
+    json_stream << "  \"Away Port\": "               << std::to_string(m_game_info.away_port) << ",\n";
+    json_stream << "  \"Home Port\": "               << std::to_string(m_game_info.home_port) << ",\n";
     json_stream << "  \"Inning\": "                  << std::to_string(in_curr_event.inning) << ",\n";
     json_stream << "  \"Half Inning\": "             << std::to_string(in_curr_event.half_inning) << ",\n";
     json_stream << "  \"Away Score\": "              << std::dec << in_curr_event.away_score << ",\n";

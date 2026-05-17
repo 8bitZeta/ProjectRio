@@ -138,6 +138,7 @@ std::string SettingsHandler::GenerateSerialNumber()
   // Must be 9 characters at most; otherwise the serial number will be rejected by SDK libraries,
   // as there is a check to ensure the string length is strictly lower than 10.
   // 3 for %j, 2 for %H, 2 for %M, 2 for %S.
-  return fmt::format("{:%j%H%M%S}", fmt::localtime(t));
+  // fmt 12 removed fmt::localtime; pass the tm pointer from std::localtime instead.
+  return fmt::format("{:%j%H%M%S}", *std::localtime(&t));
 }
 }  // namespace Common

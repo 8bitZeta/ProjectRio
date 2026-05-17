@@ -282,7 +282,7 @@ static std::string SystemTimeAsDoubleToString(double time)
 {
   // revert adjustments from GetSystemTimeAsDouble() to get a normal Unix timestamp again
   const time_t seconds = static_cast<time_t>(time) + DOUBLE_TIME_OFFSET;
-  const tm local_time = fmt::localtime(seconds);
+  const tm local_time = *std::localtime(&seconds);
 
   // fmt is locale agnostic by default, so explicitly use current locale.
   return fmt::format(std::locale{""}, "{:%x %X}", local_time);

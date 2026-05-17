@@ -82,7 +82,7 @@ PCAPSSLCaptureLogger::PCAPSSLCaptureLogger()
 {
   const std::string filepath =
       fmt::format("{}{} {:%Y-%m-%d %Hh%Mm%Ss}.pcap", File::GetUserPath(D_DUMPSSL_IDX),
-                  SConfig::GetInstance().GetGameID(), fmt::localtime(std::time(nullptr)));
+                  SConfig::GetInstance().GetGameID(), [&] { const auto t = std::time(nullptr); return *std::localtime(&t); }());
   m_file = std::make_unique<Common::PCAP>(
       new File::IOFile(filepath, "wb", File::SharedAccess::Read), Common::PCAP::LinkType::Ethernet);
 }

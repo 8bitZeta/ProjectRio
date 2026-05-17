@@ -18,7 +18,7 @@ mkdir -p build
 )
 
 # Copy the Sys folder in
-cp -r --update=none ${DATA_SYS_PATH} ${BINARY_PATH}
+cp -rn ${DATA_SYS_PATH} ${BINARY_PATH}
 
 touch ${BINARY_PATH}/portable.txt
 

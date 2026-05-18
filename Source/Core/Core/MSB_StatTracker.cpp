@@ -78,11 +78,13 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                       OSD::AddTypedMessage(
                           OSD::MessageType::GameStatePreviousPlayResult,
                           fmt::format("====PREVIOUS EVENT RESULT====\n"
+                                      "Dead Ball Reason: {}\n"
                                       "Result of At Bat: {}\n"
                                       "RBI: {}\n"
                                       "Outs: {}\n"
                                       "Pitcher: {}\n"
                                       "Batter: {}\n",
+                                      m_game_info.getCurrentEvent().dead_ball_reason,
                                       m_game_info.getCurrentEvent().result_of_atbat,
                                       m_game_info.getCurrentEvent().rbi,
                                       m_game_info.getCurrentEvent().outs, pitcher_name,
@@ -321,6 +323,7 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     logPitch(guard, m_game_info.getCurrentEvent());
                     if (!PowerPC::MMU::HostRead_U8(guard, aAB_PitchThrown)) {
                         m_game_info.getCurrentEvent().result_of_atbat = PowerPC::MMU::HostRead_U8(guard, aAB_FinalResult);
+                        m_game_info.getCurrentEvent().dead_ball_reason = PowerPC::MMU::HostRead_U8(guard, aAB_DeadBallReason);
                         m_event_state = EVENT_STATE::PLAY_OVER;
                     }
                 }
@@ -331,9 +334,7 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     //Indicate that pitch resulted in contact and log contact details
                     m_game_info.getCurrentEvent().pitch->pitch_result = 6;
                     logContactResult(guard, &m_game_info.getCurrentEvent().pitch->contact.value()); //Land vs Caught vs Foul, Landing POS.
-                    if(m_event_state != EVENT_STATE::LOG_FIELDER) { //If we don't need to scan for which fielder fields the ball
-                        m_event_state = EVENT_STATE::MONITOR_RUNNERS;
-                    }
+                    m_event_state = EVENT_STATE::MONITOR_RUNNERS;
                     break;
                 }
 
@@ -357,37 +358,23 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                 }
 
                 break;
-            case (EVENT_STATE::LOG_FIELDER):
-                //Look for bobble if we haven't seen any fielder touch the ball yet
-                if (!m_game_info.getCurrentEvent().pitch->contact->first_fielder.has_value() 
-                 && !m_game_info.getCurrentEvent().pitch->contact->collect_fielder.has_value()){
-                    
-                    //Returns a fielder that has bobbled if any exist. Otherwise optional is nullptr
-                    m_game_info.getCurrentEvent().pitch->contact->first_fielder = logFielderBobble(guard);
-                }
-                
-                if (!m_game_info.getCurrentEvent().pitch->contact->collect_fielder.has_value()){
-                    //Returns fielder that is holding the ball. Otherwise nullptr
-                    m_game_info.getCurrentEvent().pitch->contact->collect_fielder = logFielderWithBall(guard);
-                    if (m_game_info.getCurrentEvent().pitch->contact->collect_fielder.has_value()){
-                        //Start watching runners for outs when the ball has finally been collected
-                        m_event_state = EVENT_STATE::MONITOR_RUNNERS;
-                    }
-                }
-
-                //Break out if play ends without fielding the ball (HR or other play ending hit)
-                if (!PowerPC::MMU::HostRead_U8(guard, aAB_PitchThrown)) {
-                    m_game_info.getCurrentEvent().result_of_atbat = PowerPC::MMU::HostRead_U8(guard, aAB_FinalResult);
-                    m_event_state = EVENT_STATE::PLAY_OVER;
-                }
-                break;
             case (EVENT_STATE::MONITOR_RUNNERS):
                 if (!PowerPC::MMU::HostRead_U8(guard, aAB_PitchThrown) && !PowerPC::MMU::HostRead_U8(guard, aAB_PickoffAttempt)){
+                    m_game_info.getCurrentEvent().dead_ball_reason = PowerPC::MMU::HostRead_U8(guard, aAB_DeadBallReason);
                     m_game_info.getCurrentEvent().result_of_atbat = PowerPC::MMU::HostRead_U8(guard, aAB_FinalResult);
                     m_event_state = EVENT_STATE::PLAY_OVER;
                 }
                 else {
-                    logRunnerEvents(guard, & m_game_info.getCurrentEvent().runner_batter.value());
+                    //Continue polling for fielder possession and bobbles until the ball is collected.
+                    //Guard against pickoff events which reach MONITOR_RUNNERS without a pitch or contact.
+                    if (m_game_info.getCurrentEvent().pitch.has_value() && m_game_info.getCurrentEvent().pitch->contact.has_value()){
+                        if (!m_game_info.getCurrentEvent().pitch->contact->collect_fielder.has_value()){
+                            if (!m_game_info.getCurrentEvent().pitch->contact->first_fielder.has_value())
+                                m_game_info.getCurrentEvent().pitch->contact->first_fielder = logFielderBobble(guard);
+                            m_game_info.getCurrentEvent().pitch->contact->collect_fielder = logFielderWithBall(guard);
+                        }
+                    }
+                    logRunnerEvents(guard, &m_game_info.getCurrentEvent().runner_batter.value());
                     if (m_game_info.getCurrentEvent().runner_1) {
                         logRunnerEvents(guard, &m_game_info.getCurrentEvent().runner_1.value());
                     }
@@ -407,8 +394,8 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     logFinalResults(guard, m_game_info.getCurrentEvent());
 
                     //Determine if this was pitch was a DB
-                    if (m_game_info.getCurrentEvent().pitch->potential_db){
-                        m_game_info.getCurrentEvent().pitch->db = 1;                    
+                    if (m_game_info.getCurrentEvent().pitch.has_value() && m_game_info.getCurrentEvent().pitch->potential_db){
+                        m_game_info.getCurrentEvent().pitch->db = 1;
                         std::cout << "Logging DB!\n";
                     }
 
@@ -819,7 +806,6 @@ void StatTracker::logContactResult(const Core::CPUThreadGuard& guard, Contact* i
     //Log primary contact result (and secondary if possible)
     if (result == 1 || result == 2){
         in_contact->primary_contact_result = result+1; //Landed Fair
-        m_event_state = EVENT_STATE::LOG_FIELDER;
         in_contact->ball_x_pos.read_value(guard);
         in_contact->ball_y_pos.read_value(guard);
         in_contact->ball_z_pos.read_value(guard);
@@ -1108,6 +1094,7 @@ std::string StatTracker::getStatJSON(bool inDecode, bool hide_riokey){
         json_stream << "      \"Catcher Roster Loc\": "       << std::to_string(event.catcher_roster_loc) << ",\n";
         json_stream << "      \"RBI\": "                     << std::to_string(event.rbi) << ",\n";
         json_stream << "      \"" << event.num_outs_during_play.name << "\": " << event.num_outs_during_play.get_key_value_string().second << ",\n";
+        json_stream << "      \"Dead Ball Reason\": "        << decode("DeadBallReason", event.dead_ball_reason, inDecode) << ",\n";
         json_stream << "      \"Result of AB\": "            << decode("AtBatResult", event.result_of_atbat, inDecode) << ",\n";
 
         //=== Runners ===
@@ -1497,6 +1484,7 @@ std::string StatTracker::getHUDJSON(std::string in_event_num, Event& in_curr_eve
 
     json_stream << "  \"Previous Event\": {\n";
     json_stream << "    \"RBI\": "                     << std::to_string(in_prev_event->rbi) << ",\n";
+    json_stream << "    \"Dead Ball Reason\": "        << decode("DeadBallReason", in_prev_event->dead_ball_reason, inDecode) << ",\n";
     std::string comma = (in_prev_event->pitch.has_value()) ? "," : "";
     json_stream << "    \"Result of AB\": "            << decode("AtBatResult", in_prev_event->result_of_atbat, inDecode) << comma << "\n";
     if (in_prev_event->pitch.has_value()){
@@ -1914,8 +1902,9 @@ void StatTracker::logRunnerEvents(const Core::CPUThreadGuard& guard, Runner* in_
     //Return if no runner
     if (in_runner->out_type != 0 ) { return; }
 
-    //Return if runner has already gotten out
+    //Return if runner has already gotten out, or the ball is dead due to HR, GRD, or Ball Dead.
     in_runner->out_type = PowerPC::MMU::HostRead_U8(guard, aRunner_OutType + (in_runner->initial_base * cRunner_Offset));
+    u8 dead_ball_reason = PowerPC::MMU::HostRead_U8(guard, aAB_DeadBallReason);
     if (in_runner->out_type != 0) {
         in_runner->out_location = PowerPC::MMU::HostRead_U8(guard, aRunner_CurrentBase + (in_runner->initial_base * cRunner_Offset));
         in_runner->result_base = 0xFF;
@@ -1924,7 +1913,15 @@ void StatTracker::logRunnerEvents(const Core::CPUThreadGuard& guard, Runner* in_
         std::cout << "Logging Runner " << std::to_string(in_runner->initial_base) << ": Out. Type=" << std::to_string(in_runner->out_type)
         << " Location=" << std::to_string(in_runner->out_location) << "\n";
     }
-    else{
+    else if (dead_ball_reason == static_cast<u8>(DEAD_BALL_REASON::HOME_RUN))
+        in_runner->result_base = 4;
+    else if (dead_ball_reason == static_cast<u8>(DEAD_BALL_REASON::GROUND_RULE_DOUBLE))
+        in_runner->result_base = std::min<u8>(in_runner->initial_base + 2, 4);
+    else if (dead_ball_reason == static_cast<u8>(DEAD_BALL_REASON::BALL_DEAD))
+        // techincally, ball dead is "base reached at time of the throw" + 2 bases.
+        // For simplicity, we are assuming the current base == base reached at time of throw, since they should be very similar.
+        in_runner->result_base = std::min<u8>(PowerPC::MMU::HostRead_U8(guard, aRunner_CurrentBase + (in_runner->initial_base * cRunner_Offset)) + 2, 4);
+    else {
         in_runner->result_base = PowerPC::MMU::HostRead_U8(guard, aRunner_CurrentBase + (in_runner->initial_base * cRunner_Offset));
     }
 
@@ -2054,6 +2051,11 @@ std::string StatTracker::decode(std::string type, u8 value, bool decode){
     else if (type == "AtBatResult"){
         if (cAtBatResult.count(value)){
             retVal = cAtBatResult.at(value);
+        }
+    }
+    else if (type == "DeadBallReason"){
+        if (cDeadBallReason.count(value)){
+            retVal = cDeadBallReason.at(value);
         }
     }
     else if (type == "QuitterTeam"){

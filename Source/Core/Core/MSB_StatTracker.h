@@ -43,7 +43,6 @@ enum class EVENT_STATE
     INIT_EVENT,
     PITCH_RESULT,
     CONTACT_RESULT,
-    LOG_FIELDER,
     MONITOR_RUNNERS,
     PLAY_OVER,
     FINAL_RESULT,
@@ -52,11 +51,19 @@ enum class EVENT_STATE
     UNDEFINED
 };
 
+enum class DEAD_BALL_REASON
+{
+    N_A,
+    HOME_RUN,
+    FOUL_BALL,
+    GROUND_RULE_DOUBLE,
+    BALL_DEAD
+};
+
 static std::map<EVENT_STATE, std::string> c_event_state = {
     {EVENT_STATE::INIT_EVENT, "INIT_EVENT"},
     {EVENT_STATE::PITCH_RESULT, "PITCH_RESULT"},
     {EVENT_STATE::CONTACT_RESULT, "CONTACT_RESULT"},
-    {EVENT_STATE::LOG_FIELDER, "LOG_FIELDER"},
     {EVENT_STATE::MONITOR_RUNNERS, "MONITOR_RUNNERS"},
     {EVENT_STATE::PLAY_OVER, "PLAY_OVER"},
     {EVENT_STATE::FINAL_RESULT, "FINAL_RESULT"},
@@ -330,6 +337,14 @@ static const std::map<u8, std::string> cAtBatResult = {
     {0x10, "Foul catch"}
 };
 
+static const std::map<u8, std::string> cDeadBallReason = {
+    {0x0,  "N/A"},
+    {0x1,  "Home Run"},
+    {0x2,  "Foul Ball"},
+    {0x3,  "Ground Rule Double"},
+    {0x4,  "Ball Dead"}
+};
+
 static const std::map<u8, std::string> cManualSelectDecode = {
     {0x0,  "No Selected Char"},
     {0x1,  "Pitcher"},
@@ -550,6 +565,7 @@ static const u32 aAB_BallPos_Z = 0x80890B40;
 static const u32 aAB_NumOutsDuringPlay = 0x808938AD;
 static const u32 aAB_HitByPitch = 0x808909A3;
 
+static const u32 aAB_DeadBallReason = 0x80892709; //0 = n/a, 1 = HR, 2=foul, 3=ground rule double, 4 = ball dead
 static const u32 aAB_FinalResult = 0x80893BAA;
 
 //Frame Data. Capture once play is over
@@ -815,6 +831,7 @@ public:
         TrackerAdr<u8> num_outs_during_play = TrackerAdr<u8>("Num Outs During Play", aAB_NumOutsDuringPlay, 0xFF);
 
         u8 rbi;
+        u8 dead_ball_reason;
         u8 result_of_atbat;
 
         //Partial game. indicates this game has not been finished

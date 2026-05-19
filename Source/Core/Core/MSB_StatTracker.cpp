@@ -177,15 +177,14 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     m_game_info.events[m_game_info.event_num] = Event();
                     m_game_info.getCurrentEvent().event_num = m_game_info.event_num;
 
-                    logEventState(guard, m_game_info.getCurrentEvent());
-                    logGameInfo(guard);
-
                     //Get users and captains
-                    //POST OngoingGame
                     if (m_game_info.init_game == true) {
                         m_game_info.init_game = false;
                         initPlayerInfo(guard);
                     }
+
+                    logEventState(guard, m_game_info.getCurrentEvent());
+                    logGameInfo(guard);
 
                     m_game_info.getCurrentEvent().runner_batter = logRunnerInfo(guard, 0);
                     m_game_info.getCurrentEvent().runner_1 = logRunnerInfo(guard, 1);

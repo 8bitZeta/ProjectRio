@@ -177,15 +177,14 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     m_game_info.events[m_game_info.event_num] = Event();
                     m_game_info.getCurrentEvent().event_num = m_game_info.event_num;
 
-                    logEventState(guard, m_game_info.getCurrentEvent());
-                    logGameInfo(guard);
-
                     //Get users and captains
-                    //POST OngoingGame
                     if (m_game_info.init_game == true) {
                         m_game_info.init_game = false;
                         initPlayerInfo(guard);
                     }
+
+                    logEventState(guard, m_game_info.getCurrentEvent());
+                    logGameInfo(guard);
 
                     m_game_info.getCurrentEvent().runner_batter = logRunnerInfo(guard, 0);
                     m_game_info.getCurrentEvent().runner_1 = logRunnerInfo(guard, 1);
@@ -778,7 +777,7 @@ void StatTracker::logPitch(const Core::CPUThreadGuard& guard, Event& in_event){
     u8 star_swing = PowerPC::MMU::HostRead_U8(guard, aAB_StarSwing);
     u8 adjusted_swing = 0; //0=miss, 1=slap, 2=charge, 3=star, 4=bunt
     //Adjust swing to definition
-    if (star_swing != 0){
+    if (star_swing != 0 && hasEnoughStarsForStarSwing(guard, in_event)){
         adjusted_swing = 3;
     }
     else {
@@ -2174,4 +2173,27 @@ void StatTracker::updateOngoingGame(Event& in_curr_event){
                 {"Content-Type", "application/json"},
             }
         );
+}
+
+bool StatTracker::hasEnoughStarsForStarSwing(const Core::CPUThreadGuard& guard, Event& in_event)
+{
+    u8 batter_stars = (in_event.half_inning == 0) ? in_event.away_stars : in_event.home_stars;
+
+    u8 batter_roster_loc = in_event.batter_roster_loc;
+    u8 batter_char_id = m_game_info.character_summaries[in_event.half_inning][batter_roster_loc].char_id;
+
+    u8 captain_roster_loc = (in_event.half_inning == 0)
+        ? ((m_game_info.away_port == m_game_info.team0_port) ? m_game_info.team0_captain_roster_loc : m_game_info.team1_captain_roster_loc)
+        : ((m_game_info.home_port == m_game_info.team0_port) ? m_game_info.team0_captain_roster_loc : m_game_info.team1_captain_roster_loc);
+
+    u8 star_cost;
+    if (batter_roster_loc == captain_roster_loc) {
+        star_cost = 1; // actual captain
+    } else if (cCaptainTypeCharIds.count(batter_char_id)) {
+        star_cost = 2; // captain-type but not the captain this game
+    } else {
+        star_cost = 1; // non-captain character
+    }
+
+    return batter_stars >= star_cost;
 }

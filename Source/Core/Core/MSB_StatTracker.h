@@ -133,6 +133,21 @@ static const std::map<u8, std::string> cCharIdToCharName = {
     {0x35, "Bro(B)"}
 };
 
+static const std::set<u8> cCaptainTypeCharIds = {
+    0x0,  // Mario
+    0x1,  // Luigi
+    0x2,  // DK
+    0x3,  // Diddy
+    0x4,  // Peach
+    0x5,  // Daisy
+    0x6,  // Yoshi
+    0x9,  // Bowser
+    0xa,  // Wario
+    0xb,  // Waluigi
+    0x11, // Birdo
+    0x13, // Bowser Jr
+};
+
 static const std::map<u8, std::string> cStadiumIdToStadiumName = {
     {0x0, "Mario Stadium"},
     {0x1, "Bowser Castle"},
@@ -532,7 +547,8 @@ static const u32 aAB_ContactRandInt3 = 0x802ec014;
 
 static const u32 aAB_ContactAbsolute = 0x80890950;
 static const u32 aAB_ContactQuality  = 0x80890954;
-static const u32 aAB_TypeOfSwing    = 0x8089099B; //1=Slap, 2=Charge, 3=Bunt. Set on contact
+// 0=slap/linedrive star, 1=charge/grounder star/pop star, 2=captain star/moonshot, 3=bunt
+static const u32 aAB_TypeOfSwing    = 0x8089099B; 
 static const u32 aAB_ChargeUp       = 0x80890968;
 static const u32 aAB_ChargeDown     = 0x8089096C;
 static const u32 aAB_BatterHand     = 0x8089098B; //Right=0, Left=1
@@ -1148,6 +1164,7 @@ public:
     //RunnerInfo
     std::optional<Runner> logRunnerInfo(const Core::CPUThreadGuard& guard, u8 base);
     bool anyRunnerStealing(const Core::CPUThreadGuard& guard, Event& in_event);
+    bool hasEnoughStarsForStarSwing(const Core::CPUThreadGuard& guard, Event& in_event);
     void logRunnerEvents(const Core::CPUThreadGuard& guard, Runner* in_runner);
 
     //TODO Redo these tuple functions

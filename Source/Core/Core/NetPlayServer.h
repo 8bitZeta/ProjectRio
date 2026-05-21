@@ -73,6 +73,7 @@ public:
 
   void AdjustNightStadium(bool is_night);
   void AdjustReplays(bool disable);
+  void AdjustFastResetFromHUD(bool load_from_hud);
 
   void KickPlayer(PlayerId player);
 
@@ -82,6 +83,8 @@ public:
   std::string GetInterfaceHost(const std::string& inter) const;
 
   bool is_connected = false;
+
+  bool IsDesyncDetected() const { return m_desync_detected; }
 
 private:
   class Client
@@ -191,6 +194,7 @@ private:
 
   bool m_current_night_value = false;
   bool m_current_disable_replays_value = false;
+  bool m_current_fast_reset_from_HUD_value = false;
   std::optional<int> m_tagset_id = std::nullopt;
 
   std::map<PlayerId, Client> m_players;
@@ -225,4 +229,6 @@ private:
   NetPlayUI* m_dialog = nullptr;
   NetPlayIndex m_index;
 };
+
+bool NetPlay_IsDesyncDetected();
 }  // namespace NetPlay

@@ -89,6 +89,7 @@
 
 #include "DiscIO/RiivolutionPatcher.h"
 #include "Core/MSB_StatTracker.h"
+#include "Core/MSB_GenerateQuickMatchSetupGeckoCode.h"
 
 #include "InputCommon/ControlReference/ControlReference.h"
 #include "InputCommon/ControllerInterface/ControllerInterface.h"
@@ -106,6 +107,7 @@
 #include "VideoCommon/VideoConfig.h"
 
 #include "Common/TagSet.h"
+#include "Core/GeckoCodeConfig.h"
 
 namespace Core
 {
@@ -258,6 +260,8 @@ void RunRioFunctions(const Core::CPUThreadGuard& guard)
   }
 
   DisplayPlayerNames(guard);
+  if (Gecko::isLoadingFromHUD)
+    MSBQuickMatchBattingOrderMsg(guard, Gecko::HUDState);
   AutoGolfMode(guard);
   TrainingMode(guard);
 }
@@ -704,6 +708,36 @@ void RunDraftTimer(const Core::CPUThreadGuard& guard)
                              fmt::format("Draft:  {}:0{}", draftMinutes, draftSeconds), 2000);
       }
     }
+  }
+}
+
+void MSBQuickMatchBattingOrderMsg(const Core::CPUThreadGuard& guard, MSBQuickMatchGameState& state)
+{
+  // Validate state has been initialized
+  if (!state.firstBatter.has_value())
+  {
+    INFO_LOG_FMT(COMMON, "State.firstBatter doesn't have value - no message");
+    return;
+  }
+
+  // make batting order message if not in-game
+  RelNumber rel = static_cast<RelNumber>(PowerPC::MMU::HostRead_U16(guard, aRelNumber));
+  if (rel == RelNumber::MainMenu)
+  {
+    // create message
+    OSD::AddTypedMessage
+    (
+      OSD::MessageType::QuickMatchBattingOrder,
+      fmt::format
+      (
+        "Quick Match Setup V1 \n"
+        "The match will load to 1 pitch before the crash.\n"
+        "Everything will be set automatically.\n"
+        "Just press A and ignore the graphics.\n"
+      ), 
+      OSD::Duration::NORMAL,
+      OSD::Color::BLUE
+    );
   }
 }
 

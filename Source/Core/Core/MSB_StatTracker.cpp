@@ -23,6 +23,9 @@
 
 #include "Common/TagSet.h"
 
+#include "Core/GeckoCodeConfig.h"
+#include "Core/NetPlayServer.h"
+
 void StatTracker::Run(const Core::CPUThreadGuard& guard)
 {
     lookForTriggerEvents(guard);
@@ -246,10 +249,21 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     logGameInfo(guard);
 
                     if (m_game_info.getCurrentEvent().write_hud_ab.first) {
-                        std::string hud_file_path = File::GetUserPath(D_HUDFILES_IDX) + "decoded.hud.json";
-                        std::string json = getHUDJSON(std::to_string(m_game_info.event_num) + "a", m_game_info.getCurrentEvent(), m_game_info.previous_state, true);
-                        File::Delete(hud_file_path);
-                        File::WriteStringToFile(hud_file_path, json);
+                        if (!NetPlay::NetPlay_IsDesyncDetected())
+                        {
+                            // decoded version
+                            std::string hud_file_path = File::GetUserPath(D_HUDFILES_IDX) + "decoded.hud.json";
+                            std::string json = getHUDJSON(std::to_string(m_game_info.event_num) + "a", m_game_info.getCurrentEvent(), m_game_info.previous_state, true);
+                            File::Delete(hud_file_path);
+                            File::WriteStringToFile(hud_file_path, json);
+
+                            // encoded version
+                            hud_file_path = File::GetUserPath(D_HUDFILES_IDX) + "hud.json";
+                            json = getHUDJSON(std::to_string(m_game_info.event_num) + "a", m_game_info.getCurrentEvent(), m_game_info.previous_state, false);
+                            File::Delete(hud_file_path);
+                            File::WriteStringToFile(hud_file_path, json);
+                        }
+
                         //No longer need to write HUD B
                         m_game_info.getCurrentEvent().write_hud_ab.first = false;
                     }
@@ -422,10 +436,20 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     //Store current state as previous state
                     m_game_info.previous_state = m_game_info.getCurrentEvent();
 
-                    std::string hud_file_path = File::GetUserPath(D_HUDFILES_IDX) + "decoded.hud.json";
-                    std::string json = getHUDJSON(std::to_string(m_game_info.event_num) + "b", m_game_info.getCurrentEvent(), m_game_info.previous_state, true);
-                    File::Delete(hud_file_path);
-                    File::WriteStringToFile(hud_file_path, json);
+                    if (!NetPlay::NetPlay_IsDesyncDetected())
+                    {
+                        // decoded version
+                        std::string hud_file_path = File::GetUserPath(D_HUDFILES_IDX) + "decoded.hud.json";
+                        std::string json = getHUDJSON(std::to_string(m_game_info.event_num) + "b", m_game_info.getCurrentEvent(), m_game_info.previous_state, true);
+                        File::Delete(hud_file_path);
+                        File::WriteStringToFile(hud_file_path, json);
+
+                        // encoded version
+                        hud_file_path = File::GetUserPath(D_HUDFILES_IDX) + "hud.json";
+                        json = getHUDJSON(std::to_string(m_game_info.event_num) + "b", m_game_info.getCurrentEvent(), m_game_info.previous_state, false);
+                        File::Delete(hud_file_path);
+                        File::WriteStringToFile(hud_file_path, json);
+                    }
 
                     //No longer need to write HUD B
                     m_game_info.getCurrentEvent().write_hud_ab.second = false;
@@ -492,7 +516,7 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
 
                 m_game_state = GAME_STATE::INGAME;
 
-                std::string tag_set_id_str = "\"\"";
+                std::string tag_set_id_str = "-1";
                 if (m_game_info.tag_set_id.has_value()){
                     tag_set_id_str = std::to_string(m_game_info.tag_set_id.value());
                 }
@@ -933,12 +957,13 @@ std::string StatTracker::getStatJSON(bool inDecode, bool hide_riokey){
     json_stream << "  \"Date - Start\": \"" << start_date_time << "\",\n";
     json_stream << "  \"Date - End\": \"" << end_date_time << "\",\n";
     
-    std::string tag_set_id_str = "\"\"";
+    std::string tag_set_id_str = "-1";
     if (m_game_info.tag_set_id.has_value()){
         tag_set_id_str = std::to_string(m_game_info.tag_set_id.value());
     }
     json_stream << "  \"TagSetID\": " << tag_set_id_str << ",\n";
     json_stream << "  \"Netplay\": " << std::to_string(m_game_info.netplay) << ",\n";
+    json_stream << "  \"Loaded from HUD\": " << std::to_string(m_game_info.fastResetFromHUD) << ",\n";
     json_stream << "  \"StadiumID\": " << decode("Stadium", m_game_info.stadium, inDecode) << ",\n";
     json_stream << "  \"Away Player\": \"" << away_player_info << "\",\n"; //TODO MAKE THIS AN ID
     json_stream << "  \"Home Player\": \"" << home_player_info << "\",\n";
@@ -1277,26 +1302,19 @@ std::string StatTracker::getHUDJSON(std::string in_event_num, Event& in_curr_eve
     json_stream << "{\n";
 
     json_stream << "  \"GameID\": \"" << m_game_info.game_id << "\",\n";
-    std::string tag_set_id_str = "\"\"";
+    std::string tag_set_id_str = "-1";
     if (m_game_info.tag_set_id.has_value()){
         tag_set_id_str = std::to_string(m_game_info.tag_set_id.value());
     }
     json_stream << "  \"TagSetID\": " << tag_set_id_str << ",\n";
+    json_stream << "  \"Loaded from HUD\": " << std::to_string(m_game_info.fastResetFromHUD) << ",\n";
     json_stream << "  \"StadiumID\": " << decode("Stadium", m_game_info.stadium, inDecode) << ",\n";
     json_stream << "  \"Innings Selected\": " << std::to_string(m_game_info.innings_selected) << ",\n";
     json_stream << "  \"First Batting Team\": " << std::to_string(m_game_info.first_batting_team) << ",\n";
     json_stream << "  \"Star Skills On\": "      << std::to_string(m_game_info.star_skills_on) << ",\n";
     json_stream << "  \"Mercy On\": "            << std::to_string(m_game_info.mercy_on) << ",\n";
-    {
-        auto it0 = cLogoIdToTeamName.find(m_game_info.team0_logo);
-        std::string name0 = (it0 != cLogoIdToTeamName.end()) ? it0->second : "Unknown";
-        json_stream << "  \"Away Team Name\": \""  << name0 << "\",\n";
-    }
-    {
-        auto it1 = cLogoIdToTeamName.find(m_game_info.team1_logo);
-        std::string name1 = (it1 != cLogoIdToTeamName.end()) ? it1->second : "Unknown";
-        json_stream << "  \"Home Team Name\": \""  << name1 << "\",\n";
-    }
+    json_stream << "  \"Away Logo\": "         << decode("Logo", m_game_info.away_logo, inDecode) << ",\n";
+    json_stream << "  \"Home Logo\": "         << decode("Logo", m_game_info.home_logo, inDecode) << ",\n";
     json_stream << "  \"Event Num\": \""             << in_event_num << "\",\n";
     json_stream << "  \"Away Player\": \""           << m_game_info.getAwayTeamPlayer().GetUsername() << "\",\n";
     json_stream << "  \"Home Player\": \""           << m_game_info.getHomeTeamPlayer().GetUsername() << "\",\n";
@@ -1784,8 +1802,8 @@ void StatTracker::initPlayerInfo(const Core::CPUThreadGuard& guard){
     m_game_info.first_batting_team = PowerPC::MMU::HostRead_U8(guard, aFirstBattingTeam);
     m_game_info.star_skills_on     = PowerPC::MMU::HostRead_U8(guard, aStarSkillsOn);
     m_game_info.mercy_on           = PowerPC::MMU::HostRead_U8(guard, aMercyOn);
-    m_game_info.team0_logo         = PowerPC::MMU::HostRead_U32(guard, aTeam0_Logo);
-    m_game_info.team1_logo         = PowerPC::MMU::HostRead_U32(guard, aTeam1_Logo);
+    m_game_info.away_logo         = PowerPC::MMU::HostRead_U32(guard, aAway_Logo);
+    m_game_info.home_logo         = PowerPC::MMU::HostRead_U32(guard, aHome_Logo);
 
     //Collect port info for players
     if (m_game_info.team0_port == 0xFF && m_game_info.team1_port == 0xFF){
@@ -1798,9 +1816,17 @@ void StatTracker::initPlayerInfo(const Core::CPUThreadGuard& guard){
         m_game_info.team0_port = ports[0];
         m_game_info.team1_port = ports[1];
 
-        //This will be true for event 0 (when this function is executed)
-        m_game_info.home_port = FieldingPort;
-        m_game_info.away_port = BattingPort;
+        //Need to acount for possibility to init during the bottom of the inning if the fast load mod is on.
+        if (m_game_info.getCurrentEvent().half_inning == 0)
+        {
+            m_game_info.home_port = FieldingPort;
+            m_game_info.away_port = BattingPort;
+        }
+        else
+        {
+            m_game_info.home_port = BattingPort;
+            m_game_info.away_port = FieldingPort;
+        }
 
         readPlayerNames(!m_game_info.netplay);
 
@@ -1943,6 +1969,11 @@ std::string StatTracker::decode(std::string type, u8 value, bool decode){
     else if (type == "Stadium"){
         if (cStadiumIdToStadiumName.count(value)){
             retVal = cStadiumIdToStadiumName.at(value);
+        }
+    }
+    else if (type == "Logo"){
+        if (cLogoIdToTeamName.count(value)){
+            retVal = cLogoIdToTeamName.at(value);
         }
     }
     else if (type == "Contact"){
@@ -2093,11 +2124,12 @@ void StatTracker::postOngoingGame(Event& in_curr_event){
     json_stream << "  \"GameID\": \"" << m_game_info.game_id << "\",\n";
     json_stream << "  \"Date - Start\": \"" << start_date_time << "\",\n";
     
-    std::string tag_set_id_str = "\"\"";
+    std::string tag_set_id_str = "-1";
     if (m_game_info.tag_set_id.has_value()){
         tag_set_id_str = std::to_string(m_game_info.tag_set_id.value());
     }
     json_stream << "  \"TagSetID\": " << tag_set_id_str << ",\n";
+    json_stream << "  \"Loaded from HUD\": " << std::to_string(m_game_info.fastResetFromHUD) << ",\n";
     json_stream << "  \"StadiumID\": " << decode("Stadium", m_game_info.stadium, false) << ",\n";
     json_stream << "  \"Away Player\": \""           << m_game_info.getAwayTeamPlayer().GetUserID() << "\",\n";
     json_stream << "  \"Home Player\": \""           << m_game_info.getHomeTeamPlayer().GetUserID() << "\",\n";

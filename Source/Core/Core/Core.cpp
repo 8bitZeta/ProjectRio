@@ -1835,21 +1835,6 @@ bool GameSupportsTagSets()
     return false;
 }
 
-std::optional<std::pair<u32,u32>> getGameFreeMemory()
-{
-  switch (mGameBeingPlayed) {
-  case GameName::MarioBaseball:
-    //return std::make_pair(0x802ED200, 0x802EE764);
-    return std::make_pair(0x802D5100, 0x802D9500);
-  case GameName::ToadstoolTour:
-    return std::nullopt;
-  case GameName::UnknownGame:
-    return std::nullopt;
-  default:
-    return std::nullopt;
-  }
-}
-
 int GetNextGolferID()
 {
   return nextGolferID;

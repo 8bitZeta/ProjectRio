@@ -8,6 +8,8 @@
 #include <vector>
 
 #include "Core/GeckoCode.h"
+#include "Core/MSB_GenerateQuickMatchSetupGeckoCode.h"
+#include "Common/FileUtil.h"
 
 namespace Common
 {
@@ -24,20 +26,15 @@ void SaveCodes(Common::IniFile& inifile, const std::vector<GeckoCode>& gcodes);
 std::optional<GeckoCode::Code> DeserializeLine(const std::string& line);
 void ReadLines(std::vector<GeckoCode>& gcodes, std::vector<std::string>& lines, bool user_defined);
 
-static bool isDisableReplays = false;
-void setDisableReplays(bool disable);
-static bool isNightStadium = false;
+extern bool isNightStadium;
 void setNightStadium(bool is_night);
-//static bool isTrainingMode = false;
 
-const std::string MSSB_DisableReplays = R"(
-+$Disable Replays [LittleCoaks]
-206bb214 38000001
-046bb214 38000000
-E2000001 00000000
-*Disables replays
+extern bool isDisableReplays;
+void setDisableReplays(bool disable);
 
-)";
+extern bool isLoadingFromHUD;
+extern MSBQuickMatchGameState HUDState;
+void setFastResetFromHUD(bool load_from_hud);
 
 const std::string MSSB_NightStadium = R"(
 +$Night Mario Stadium [LittleCoaks]
@@ -49,6 +46,15 @@ C2650678 00000004
 60000000 00000000
 E2000001 00000000
 *Mario Stadium is given the night-time effect as seen in Bom-omb Derby
+
+)";
+
+const std::string MSSB_DisableReplays = R"(
++$Disable Replays [LittleCoaks]
+206bb214 38000001
+046bb214 38000000
+E2000001 00000000
+*Disables replays
 
 )";
 
@@ -198,9 +204,9 @@ E2000001 00000000
 *All mingames, stadiums, characters, and star characters are unlocked.
 
 +$Boot to Main Menu [LittleCoaks]
-280e877d 00000000
+280e877C 00000000
 0463f964 38600005
-e2000001 00000000
+E2000001 00000000
 *Skips the opening cutscenes and stars the game on the main menu. Does not load in memory card.
 
 +$Default Mercy On [LittleCoaks]

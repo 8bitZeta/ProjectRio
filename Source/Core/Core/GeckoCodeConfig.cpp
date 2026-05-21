@@ -14,6 +14,8 @@
 #include "Common/Logging/Log.h"
 #include "Common/StringUtil.h"
 #include "Core/CheatCodes.h"
+#include "Core/MSB_GenerateQuickMatchSetupGeckoCode.h"
+#include "Core/GeckoCode.h"
 
 namespace Gecko
 {
@@ -147,10 +149,10 @@ std::vector<GeckoCode> LoadCodes(const Common::IniFile& globalIni, const Common:
       BuiltInGeckoCodes = MSSB_BuiltInGeckoCodes;
       if (is_netplay)
       {
-        if (isDisableReplays)
-          BuiltInGeckoCodes = BuiltInGeckoCodes.value() + MSSB_DisableReplays;
         if (isNightStadium)
           BuiltInGeckoCodes = BuiltInGeckoCodes.value() + MSSB_NightStadium;
+        if (isDisableReplays)
+          BuiltInGeckoCodes = BuiltInGeckoCodes.value() + MSSB_DisableReplays;
       }
     }
     // else if (gameId == "GFTE01")
@@ -179,6 +181,15 @@ std::vector<GeckoCode> LoadCodes(const Common::IniFile& globalIni, const Common:
       for (GeckoCode& code : gcodes)
         code.built_in_code = true;
     }
+  }
+
+  // append the gecko codes to allow starting a game from the latest hud game state.
+  // HUDState is pre-populated by OnFastResetFromHUDMsg before the game starts.
+  if (isLoadingFromHUD)
+  {
+          auto hudCodes = MSBQuickMatchCodeBuilder::MSB_GenerateQuickMatchSetupGeckoCode(HUDState);
+          for (auto& code : hudCodes)
+              gcodes.push_back(std::move(code));
   }
 
   for (const auto* ini : {&globalIni, &localIni})
@@ -331,14 +342,24 @@ void ReadLines(std::vector<GeckoCode>& gcodes, std::vector<std::string>& lines, 
   }
 }
 
+bool isNightStadium = false;
+void setNightStadium(bool is_night)
+{
+  isNightStadium = is_night;
+}
+
+bool isDisableReplays = false;
 void setDisableReplays(bool disable)
 {
   isDisableReplays = disable;
 }
 
-void setNightStadium(bool is_night)
+bool isLoadingFromHUD = false;
+MSBQuickMatchGameState HUDState;
+
+void setFastResetFromHUD(bool load_from_hud)
 {
-  isNightStadium = is_night;
+  isLoadingFromHUD = load_from_hud;
 }
 
 }  // namespace Gecko

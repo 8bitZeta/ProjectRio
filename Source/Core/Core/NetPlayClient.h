@@ -84,6 +84,7 @@ public:
   virtual void OnCoinFlipResult(int coinFlip) = 0;
   virtual void OnNightResult(bool is_night) = 0;
   virtual void OnDisableReplaysResult(bool disable) = 0;
+  virtual void OnFastResetFromHUDResult(int load_from_hud_result_code) = 0;
   virtual void OnActiveGeckoCodes(std::string codeStr) = 0;
   virtual void OnRandomStadiumResult(int stadium) = 0;
   virtual void OnCourseResult(std::string message) = 0;
@@ -144,6 +145,7 @@ public:
 
   // Called from the GUI thread.
   bool IsConnected() const { return m_is_connected; }
+  bool IsDesyncDetected() const { return m_desync_detected; }
   bool StartGame(const std::string& path);
   void InvokeStop();
   bool StopGame();
@@ -155,6 +157,7 @@ public:
   void SendNightStadium(bool is_night);
   void SendStadium(int stadium);
   void SendDisableReplays(bool disable);
+  void SendFastResetFromHUD(bool load_from_hud);
   void SendCourse(std::string message);
   void RequestStopGame();
   void SendPowerButtonEvent();
@@ -367,10 +370,12 @@ private:
   void OnStadiumMsg(sf::Packet& packet);
   void OnCourseMsg(sf::Packet& packet);
   void OnDisableReplaysMsg(sf::Packet& packet);
+  void OnFastResetFromHUDMsg(sf::Packet& packet);
 
   int framesAsGolfer = 0;
 
   bool m_is_connected = false;
+  bool m_desync_detected = false;
   ConnectionState m_connection_state = ConnectionState::Failure;
 
   PlayerId m_pid = 0;
@@ -410,4 +415,5 @@ void NetPlay_Enable(NetPlayClient* const np);
 void NetPlay_Disable();
 bool NetPlay_GetWiimoteData(const std::span<NetPlayClient::WiimoteDataBatchEntry>& entries);
 unsigned int NetPlay_GetLocalWiimoteForSlot(unsigned int slot);
+bool NetPlay_IsClientDesyncDetected();
 }  // namespace NetPlay

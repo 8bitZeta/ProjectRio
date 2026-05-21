@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 #include "Common/CommonPaths.h"
 #include "Common/ENet.h"
@@ -88,8 +89,11 @@
 
 namespace NetPlay
 {
+static NetPlayServer* netplay_server = nullptr;
+
 NetPlayServer::~NetPlayServer()
 {
+  netplay_server = nullptr;
   if (is_connected)
   {
     m_do_loop = false;
@@ -167,6 +171,7 @@ NetPlayServer::NetPlayServer(const u16 port, const bool forward_port, NetPlayUI*
   {
     is_connected = true;
     m_do_loop = true;
+    netplay_server = this;
     m_thread = std::thread(&NetPlayServer::ThreadFunc, this);
     m_target_buffer_size = 8;
     m_chunked_data_thread = std::thread(&NetPlayServer::ChunkedDataThreadFunc, this);
@@ -508,6 +513,9 @@ ConnectionError NetPlayServer::OnConnect(ENetPeer* incoming_connection, sf::Pack
   // send disable replays state
   SendResponseToPlayer(new_player, MessageID::DisableReplays, m_current_disable_replays_value);
 
+  // send fast reset from HUD state
+  SendResponseToPlayer(new_player, MessageID::FastResetFromHUD, m_current_fast_reset_from_HUD_value);
+
   // send input authority state
   SendResponseToPlayer(new_player, MessageID::HostInputAuthority, m_host_input_authority);
 
@@ -730,6 +738,19 @@ void NetPlayServer::AdjustReplays(const bool disable)
   SendAsyncToClients(std::move(spac));
 }
 
+void NetPlayServer::AdjustFastResetFromHUD(const bool load_from_hud)
+{
+  std::lock_guard lkg(m_crit.game);
+  m_current_fast_reset_from_HUD_value = load_from_hud;
+
+  // tell clients to enable loading game from HUD
+  sf::Packet spac;
+  spac << MessageID::FastResetFromHUD;
+  spac << m_current_fast_reset_from_HUD_value;
+
+  SendAsyncToClients(std::move(spac));
+}
+
 void NetPlayServer::SetTagSet(bool exists, int tagset_id)
 {
   m_tagset_id = exists ? std::make_optional(tagset_id) : std::nullopt;
@@ -935,6 +956,20 @@ unsigned int NetPlayServer::OnData(sf::Packet& packet, Client& player)
     sf::Packet spac;
     spac << MessageID::DisableReplays;
     spac << disable;
+
+    SendToClients(spac);
+  }
+  break;
+
+  case MessageID::FastResetFromHUD:
+  {
+    bool load_from_hud;
+    packet >> load_from_hud;
+
+    // send codes to other clients
+    sf::Packet spac;
+    spac << MessageID::FastResetFromHUD;
+    spac << load_from_hud;
 
     SendToClients(spac);
   }
@@ -2716,4 +2751,11 @@ void NetPlayServer::ChunkedDataAbort()
   m_chunked_data_event.Set();
   m_chunked_data_complete_event.Set();
 }
+
+bool NetPlay_IsDesyncDetected()
+{
+  return (netplay_server && netplay_server->IsDesyncDetected()) ||
+         NetPlay_IsClientDesyncDetected();
+}
+
 }  // namespace NetPlay

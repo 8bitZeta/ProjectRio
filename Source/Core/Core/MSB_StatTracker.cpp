@@ -23,6 +23,9 @@
 
 #include "Common/TagSet.h"
 
+#include "Core/GeckoCodeConfig.h"
+#include "Core/NetPlayServer.h"
+
 void StatTracker::Run(const Core::CPUThreadGuard& guard)
 {
     lookForTriggerEvents(guard);
@@ -78,11 +81,13 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                       OSD::AddTypedMessage(
                           OSD::MessageType::GameStatePreviousPlayResult,
                           fmt::format("====PREVIOUS EVENT RESULT====\n"
+                                      "Dead Ball Reason: {}\n"
                                       "Result of At Bat: {}\n"
                                       "RBI: {}\n"
                                       "Outs: {}\n"
                                       "Pitcher: {}\n"
                                       "Batter: {}\n",
+                                      m_game_info.getCurrentEvent().dead_ball_reason,
                                       m_game_info.getCurrentEvent().result_of_atbat,
                                       m_game_info.getCurrentEvent().rbi,
                                       m_game_info.getCurrentEvent().outs, pitcher_name,
@@ -175,15 +180,14 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     m_game_info.events[m_game_info.event_num] = Event();
                     m_game_info.getCurrentEvent().event_num = m_game_info.event_num;
 
-                    logEventState(guard, m_game_info.getCurrentEvent());
-                    logGameInfo(guard);
-
                     //Get users and captains
-                    //POST OngoingGame
                     if (m_game_info.init_game == true) {
                         m_game_info.init_game = false;
                         initPlayerInfo(guard);
                     }
+
+                    logEventState(guard, m_game_info.getCurrentEvent());
+                    logGameInfo(guard);
 
                     m_game_info.getCurrentEvent().runner_batter = logRunnerInfo(guard, 0);
                     m_game_info.getCurrentEvent().runner_1 = logRunnerInfo(guard, 1);
@@ -245,10 +249,21 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     logGameInfo(guard);
 
                     if (m_game_info.getCurrentEvent().write_hud_ab.first) {
-                        std::string hud_file_path = File::GetUserPath(D_HUDFILES_IDX) + "decoded.hud.json";
-                        std::string json = getHUDJSON(std::to_string(m_game_info.event_num) + "a", m_game_info.getCurrentEvent(), m_game_info.previous_state, true);
-                        File::Delete(hud_file_path);
-                        File::WriteStringToFile(hud_file_path, json);
+                        if (!NetPlay::NetPlay_IsDesyncDetected())
+                        {
+                            // decoded version
+                            std::string hud_file_path = File::GetUserPath(D_HUDFILES_IDX) + "decoded.hud.json";
+                            std::string json = getHUDJSON(std::to_string(m_game_info.event_num) + "a", m_game_info.getCurrentEvent(), m_game_info.previous_state, true);
+                            File::Delete(hud_file_path);
+                            File::WriteStringToFile(hud_file_path, json);
+
+                            // encoded version
+                            hud_file_path = File::GetUserPath(D_HUDFILES_IDX) + "hud.json";
+                            json = getHUDJSON(std::to_string(m_game_info.event_num) + "a", m_game_info.getCurrentEvent(), m_game_info.previous_state, false);
+                            File::Delete(hud_file_path);
+                            File::WriteStringToFile(hud_file_path, json);
+                        }
+
                         //No longer need to write HUD B
                         m_game_info.getCurrentEvent().write_hud_ab.first = false;
                     }
@@ -272,7 +287,7 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                         m_event_state = EVENT_STATE::PITCH_RESULT;
                     }
                     else if(PowerPC::MMU::HostRead_U8(guard, aAB_PickoffAttempt)) {
-                        std::cout << "Pick of attempt detected!\n";
+                        std::cout << "Pick off attempt detected!\n";
                         m_event_state = EVENT_STATE::MONITOR_RUNNERS;
                         m_game_info.getCurrentEvent().pick_off_attempt = true;
                     }
@@ -321,6 +336,7 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     logPitch(guard, m_game_info.getCurrentEvent());
                     if (!PowerPC::MMU::HostRead_U8(guard, aAB_PitchThrown)) {
                         m_game_info.getCurrentEvent().result_of_atbat = PowerPC::MMU::HostRead_U8(guard, aAB_FinalResult);
+                        m_game_info.getCurrentEvent().dead_ball_reason = PowerPC::MMU::HostRead_U8(guard, aAB_DeadBallReason);
                         m_event_state = EVENT_STATE::PLAY_OVER;
                     }
                 }
@@ -331,9 +347,7 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     //Indicate that pitch resulted in contact and log contact details
                     m_game_info.getCurrentEvent().pitch->pitch_result = 6;
                     logContactResult(guard, &m_game_info.getCurrentEvent().pitch->contact.value()); //Land vs Caught vs Foul, Landing POS.
-                    if(m_event_state != EVENT_STATE::LOG_FIELDER) { //If we don't need to scan for which fielder fields the ball
-                        m_event_state = EVENT_STATE::MONITOR_RUNNERS;
-                    }
+                    m_event_state = EVENT_STATE::MONITOR_RUNNERS;
                     break;
                 }
 
@@ -357,37 +371,23 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                 }
 
                 break;
-            case (EVENT_STATE::LOG_FIELDER):
-                //Look for bobble if we haven't seen any fielder touch the ball yet
-                if (!m_game_info.getCurrentEvent().pitch->contact->first_fielder.has_value() 
-                 && !m_game_info.getCurrentEvent().pitch->contact->collect_fielder.has_value()){
-                    
-                    //Returns a fielder that has bobbled if any exist. Otherwise optional is nullptr
-                    m_game_info.getCurrentEvent().pitch->contact->first_fielder = logFielderBobble(guard);
-                }
-                
-                if (!m_game_info.getCurrentEvent().pitch->contact->collect_fielder.has_value()){
-                    //Returns fielder that is holding the ball. Otherwise nullptr
-                    m_game_info.getCurrentEvent().pitch->contact->collect_fielder = logFielderWithBall(guard);
-                    if (m_game_info.getCurrentEvent().pitch->contact->collect_fielder.has_value()){
-                        //Start watching runners for outs when the ball has finally been collected
-                        m_event_state = EVENT_STATE::MONITOR_RUNNERS;
-                    }
-                }
-
-                //Break out if play ends without fielding the ball (HR or other play ending hit)
-                if (!PowerPC::MMU::HostRead_U8(guard, aAB_PitchThrown)) {
-                    m_game_info.getCurrentEvent().result_of_atbat = PowerPC::MMU::HostRead_U8(guard, aAB_FinalResult);
-                    m_event_state = EVENT_STATE::PLAY_OVER;
-                }
-                break;
             case (EVENT_STATE::MONITOR_RUNNERS):
                 if (!PowerPC::MMU::HostRead_U8(guard, aAB_PitchThrown) && !PowerPC::MMU::HostRead_U8(guard, aAB_PickoffAttempt)){
+                    m_game_info.getCurrentEvent().dead_ball_reason = PowerPC::MMU::HostRead_U8(guard, aAB_DeadBallReason);
                     m_game_info.getCurrentEvent().result_of_atbat = PowerPC::MMU::HostRead_U8(guard, aAB_FinalResult);
                     m_event_state = EVENT_STATE::PLAY_OVER;
                 }
                 else {
-                    logRunnerEvents(guard, & m_game_info.getCurrentEvent().runner_batter.value());
+                    //Continue polling for fielder possession and bobbles until the ball is collected.
+                    //Guard against pickoff events which reach MONITOR_RUNNERS without a pitch or contact.
+                    if (m_game_info.getCurrentEvent().pitch.has_value() && m_game_info.getCurrentEvent().pitch->contact.has_value()){
+                        if (!m_game_info.getCurrentEvent().pitch->contact->collect_fielder.has_value()){
+                            if (!m_game_info.getCurrentEvent().pitch->contact->first_fielder.has_value())
+                                m_game_info.getCurrentEvent().pitch->contact->first_fielder = logFielderBobble(guard);
+                            m_game_info.getCurrentEvent().pitch->contact->collect_fielder = logFielderWithBall(guard);
+                        }
+                    }
+                    logRunnerEvents(guard, &m_game_info.getCurrentEvent().runner_batter.value());
                     if (m_game_info.getCurrentEvent().runner_1) {
                         logRunnerEvents(guard, &m_game_info.getCurrentEvent().runner_1.value());
                     }
@@ -407,8 +407,8 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     logFinalResults(guard, m_game_info.getCurrentEvent());
 
                     //Determine if this was pitch was a DB
-                    if (m_game_info.getCurrentEvent().pitch->potential_db){
-                        m_game_info.getCurrentEvent().pitch->db = 1;                    
+                    if (m_game_info.getCurrentEvent().pitch.has_value() && m_game_info.getCurrentEvent().pitch->potential_db){
+                        m_game_info.getCurrentEvent().pitch->db = 1;
                         std::cout << "Logging DB!\n";
                     }
 
@@ -436,10 +436,20 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     //Store current state as previous state
                     m_game_info.previous_state = m_game_info.getCurrentEvent();
 
-                    std::string hud_file_path = File::GetUserPath(D_HUDFILES_IDX) + "decoded.hud.json";
-                    std::string json = getHUDJSON(std::to_string(m_game_info.event_num) + "b", m_game_info.getCurrentEvent(), m_game_info.previous_state, true);
-                    File::Delete(hud_file_path);
-                    File::WriteStringToFile(hud_file_path, json);
+                    if (!NetPlay::NetPlay_IsDesyncDetected())
+                    {
+                        // decoded version
+                        std::string hud_file_path = File::GetUserPath(D_HUDFILES_IDX) + "decoded.hud.json";
+                        std::string json = getHUDJSON(std::to_string(m_game_info.event_num) + "b", m_game_info.getCurrentEvent(), m_game_info.previous_state, true);
+                        File::Delete(hud_file_path);
+                        File::WriteStringToFile(hud_file_path, json);
+
+                        // encoded version
+                        hud_file_path = File::GetUserPath(D_HUDFILES_IDX) + "hud.json";
+                        json = getHUDJSON(std::to_string(m_game_info.event_num) + "b", m_game_info.getCurrentEvent(), m_game_info.previous_state, false);
+                        File::Delete(hud_file_path);
+                        File::WriteStringToFile(hud_file_path, json);
+                    }
 
                     //No longer need to write HUD B
                     m_game_info.getCurrentEvent().write_hud_ab.second = false;
@@ -469,7 +479,8 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
                     m_event_state = EVENT_STATE::GAME_OVER;
                     std::cout << "Logging Final Result\n" << "Game Over\n\n";
                 }
-                else if ((m_game_info.previous_state.value().balls < 4 || m_game_info.previous_state.value().strikes < 3) && m_game_info.getCurrentEvent().result_of_atbat == 0) {
+                else if ((m_game_info.getCurrentEvent().outs + m_game_info.getCurrentEvent().num_outs_during_play.get_value() < 3) &&
+                         m_game_info.getCurrentEvent().result_of_atbat == 0) {
                     ++m_game_info.event_num;
                     m_event_state = EVENT_STATE::INIT_EVENT;
                     std::cout << "Logging Final Result\n" << "Starting next pitch of AB\n\n";
@@ -505,7 +516,7 @@ void StatTracker::lookForTriggerEvents(const Core::CPUThreadGuard& guard)
 
                 m_game_state = GAME_STATE::INGAME;
 
-                std::string tag_set_id_str = "\"\"";
+                std::string tag_set_id_str = "-1";
                 if (m_game_info.tag_set_id.has_value()){
                     tag_set_id_str = std::to_string(m_game_info.tag_set_id.value());
                 }
@@ -709,6 +720,17 @@ void StatTracker::logEventState(const Core::CPUThreadGuard& guard, Event& in_eve
     in_event.pitcher_roster_loc = PowerPC::MMU::HostRead_U8(guard, aAB_PitcherRosterID);
     in_event.batter_roster_loc  = PowerPC::MMU::HostRead_U8(guard, aAB_BatterRosterID);
     in_event.catcher_roster_loc = PowerPC::MMU::HostRead_U8(guard, aFielder_RosterLoc + (1 * cFielder_Offset));
+
+    // Track both teams' current batter positions so the fielding team's is preserved across half-innings
+    in_event.away_batter_roster_loc = static_cast<u8>(PowerPC::MMU::HostRead_U32(guard, aAB_AwayBatter)) - 1;
+    in_event.home_batter_roster_loc = static_cast<u8>(PowerPC::MMU::HostRead_U32(guard, aAB_HomeBatter)) - 1;
+
+    // Read per-inning scores for each team up to the current inning
+    // Memory layout: current score (u16) followed by 18 inning scores (u16 each)
+    for (u8 i = 0; i < in_event.inning && i < 18; ++i) {
+        in_event.away_inning_scores[i] = PowerPC::MMU::HostRead_U16(guard, aAwayTeam_Score + ((i + 1) * 2));
+        in_event.home_inning_scores[i] = PowerPC::MMU::HostRead_U16(guard, aHomeTeam_Score + ((i + 1) * 2));
+    }
 }
 
 void StatTracker::logContact(const Core::CPUThreadGuard& guard, Event& in_event){
@@ -779,7 +801,7 @@ void StatTracker::logPitch(const Core::CPUThreadGuard& guard, Event& in_event){
     u8 star_swing = PowerPC::MMU::HostRead_U8(guard, aAB_StarSwing);
     u8 adjusted_swing = 0; //0=miss, 1=slap, 2=charge, 3=star, 4=bunt
     //Adjust swing to definition
-    if (star_swing != 0){
+    if (star_swing != 0 && hasEnoughStarsForStarSwing(guard, in_event)){
         adjusted_swing = 3;
     }
     else {
@@ -807,7 +829,6 @@ void StatTracker::logContactResult(const Core::CPUThreadGuard& guard, Contact* i
     //Log primary contact result (and secondary if possible)
     if (result == 1 || result == 2){
         in_contact->primary_contact_result = result+1; //Landed Fair
-        m_event_state = EVENT_STATE::LOG_FIELDER;
         in_contact->ball_x_pos.read_value(guard);
         in_contact->ball_y_pos.read_value(guard);
         in_contact->ball_z_pos.read_value(guard);
@@ -936,12 +957,13 @@ std::string StatTracker::getStatJSON(bool inDecode, bool hide_riokey){
     json_stream << "  \"Date - Start\": \"" << start_date_time << "\",\n";
     json_stream << "  \"Date - End\": \"" << end_date_time << "\",\n";
     
-    std::string tag_set_id_str = "\"\"";
+    std::string tag_set_id_str = "-1";
     if (m_game_info.tag_set_id.has_value()){
         tag_set_id_str = std::to_string(m_game_info.tag_set_id.value());
     }
     json_stream << "  \"TagSetID\": " << tag_set_id_str << ",\n";
     json_stream << "  \"Netplay\": " << std::to_string(m_game_info.netplay) << ",\n";
+    json_stream << "  \"Loaded from HUD\": " << std::to_string(m_game_info.fastResetFromHUD) << ",\n";
     json_stream << "  \"StadiumID\": " << decode("Stadium", m_game_info.stadium, inDecode) << ",\n";
     json_stream << "  \"Away Player\": \"" << away_player_info << "\",\n"; //TODO MAKE THIS AN ID
     json_stream << "  \"Home Player\": \"" << home_player_info << "\",\n";
@@ -1096,6 +1118,7 @@ std::string StatTracker::getStatJSON(bool inDecode, bool hide_riokey){
         json_stream << "      \"Catcher Roster Loc\": "       << std::to_string(event.catcher_roster_loc) << ",\n";
         json_stream << "      \"RBI\": "                     << std::to_string(event.rbi) << ",\n";
         json_stream << "      \"" << event.num_outs_during_play.name << "\": " << event.num_outs_during_play.get_key_value_string().second << ",\n";
+        json_stream << "      \"Dead Ball Reason\": "        << decode("DeadBallReason", event.dead_ball_reason, inDecode) << ",\n";
         json_stream << "      \"Result of AB\": "            << decode("AtBatResult", event.result_of_atbat, inDecode) << ",\n";
 
         //=== Runners ===
@@ -1278,13 +1301,44 @@ std::string StatTracker::getHUDJSON(std::string in_event_num, Event& in_curr_eve
 
     json_stream << "{\n";
 
+    json_stream << "  \"GameID\": \"" << m_game_info.game_id << "\",\n";
+    std::string tag_set_id_str = "-1";
+    if (m_game_info.tag_set_id.has_value()){
+        tag_set_id_str = std::to_string(m_game_info.tag_set_id.value());
+    }
+    json_stream << "  \"TagSetID\": " << tag_set_id_str << ",\n";
+    json_stream << "  \"Loaded from HUD\": " << std::to_string(m_game_info.fastResetFromHUD) << ",\n";
+    json_stream << "  \"StadiumID\": " << decode("Stadium", m_game_info.stadium, inDecode) << ",\n";
+    json_stream << "  \"Innings Selected\": " << std::to_string(m_game_info.innings_selected) << ",\n";
+    json_stream << "  \"First Batting Team\": " << std::to_string(m_game_info.first_batting_team) << ",\n";
+    json_stream << "  \"Star Skills On\": "      << std::to_string(m_game_info.star_skills_on) << ",\n";
+    json_stream << "  \"Mercy On\": "            << std::to_string(m_game_info.mercy_on) << ",\n";
+    json_stream << "  \"Away Logo\": "         << decode("Logo", m_game_info.away_logo, inDecode) << ",\n";
+    json_stream << "  \"Home Logo\": "         << decode("Logo", m_game_info.home_logo, inDecode) << ",\n";
     json_stream << "  \"Event Num\": \""             << in_event_num << "\",\n";
     json_stream << "  \"Away Player\": \""           << m_game_info.getAwayTeamPlayer().GetUsername() << "\",\n";
     json_stream << "  \"Home Player\": \""           << m_game_info.getHomeTeamPlayer().GetUsername() << "\",\n";
+    json_stream << "  \"Away Port\": "               << std::to_string(m_game_info.away_port) << ",\n";
+    json_stream << "  \"Home Port\": "               << std::to_string(m_game_info.home_port) << ",\n";
     json_stream << "  \"Inning\": "                  << std::to_string(in_curr_event.inning) << ",\n";
     json_stream << "  \"Half Inning\": "             << std::to_string(in_curr_event.half_inning) << ",\n";
     json_stream << "  \"Away Score\": "              << std::dec << in_curr_event.away_score << ",\n";
     json_stream << "  \"Home Score\": "              << std::dec << in_curr_event.home_score << ",\n";
+
+    json_stream << "  \"Away Inning Scores\": [";
+    for (u8 i = 0; i < in_curr_event.inning && i < 18; ++i) {
+        json_stream << in_curr_event.away_inning_scores[i];
+        if (i < in_curr_event.inning - 1) json_stream << ", ";
+    }
+    json_stream << "],\n";
+
+    json_stream << "  \"Home Inning Scores\": [";
+    for (u8 i = 0; i < in_curr_event.inning && i < 18; ++i) {
+        json_stream << in_curr_event.home_inning_scores[i];
+        if (i < in_curr_event.inning - 1) json_stream << ", ";
+    }
+    json_stream << "],\n";
+
     json_stream << "  \"Balls\": "                   << std::to_string(in_curr_event.balls) << ",\n";
     json_stream << "  \"Strikes\": "                 << std::to_string(in_curr_event.strikes) << ",\n";
     json_stream << "  \"Outs\": "                    << std::to_string(in_curr_event.outs) << ",\n";
@@ -1294,18 +1348,20 @@ std::string StatTracker::getHUDJSON(std::string in_event_num, Event& in_curr_eve
     json_stream << "  \"Pitcher Stamina\": "         << std::to_string(in_curr_event.pitcher_stamina) << ",\n";
     json_stream << "  \"Chemistry Links on Base\": " << std::to_string(in_curr_event.chem_links_ob) << ",\n";
     json_stream << "  \"" << in_curr_event.num_outs_during_play.name << "\": " << in_curr_event.num_outs_during_play.get_key_value_string().second << ",\n";
-    json_stream << "  \"Pitcher Roster Loc\": "      << std::to_string(in_curr_event.pitcher_roster_loc) << ",\n";
-    json_stream << "  \"Batter Roster Loc\": "       << std::to_string(in_curr_event.batter_roster_loc) << ",\n";
+    json_stream << "  \"Pitcher Roster Loc\": "        << std::to_string(in_curr_event.pitcher_roster_loc) << ",\n";
+    json_stream << "  \"Batter Roster Loc\": "         << std::to_string(in_curr_event.batter_roster_loc) << ",\n";
+    json_stream << "  \"Away Batter Roster Loc\": "    << std::to_string(in_curr_event.away_batter_roster_loc) << ",\n";
+    json_stream << "  \"Home Batter Roster Loc\": "    << std::to_string(in_curr_event.home_batter_roster_loc) << ",\n";
 
     for (int team=0; team < 2; ++team){
         for (int roster=0; roster < cRosterSize; ++roster){
 
             u8 captain_roster_loc = 0;
             if (team == 0){
-                captain_roster_loc = (m_game_info.home_port == m_game_info.team0_port) ? m_game_info.team0_captain_roster_loc : m_game_info.team1_captain_roster_loc;
+                captain_roster_loc = (m_game_info.away_port == m_game_info.team0_port) ? m_game_info.team0_captain_roster_loc : m_game_info.team1_captain_roster_loc;
             }
             else{ // team == 1
-                captain_roster_loc = (m_game_info.away_port == m_game_info.team0_port) ? m_game_info.team0_captain_roster_loc : m_game_info.team1_captain_roster_loc;
+                captain_roster_loc = (m_game_info.home_port == m_game_info.team0_port) ? m_game_info.team0_captain_roster_loc : m_game_info.team1_captain_roster_loc;
             }
 
             std::string team_string = (team == 0) ? "Away" : "Home";
@@ -1320,6 +1376,7 @@ std::string StatTracker::getHUDJSON(std::string in_event_num, Event& in_curr_eve
             json_stream << "    \"Captain\": "       << std::to_string(roster == captain_roster_loc) << ",\n";
             json_stream << "    \"Fielding Hand\": " << decode("Hand", char_summary.fielding_hand, inDecode) << ",\n";
             json_stream << "    \"Batting Hand\": "  << decode("Hand", char_summary.batting_hand, inDecode) << ",\n";
+            json_stream << "    \"Fielding Position\": " << decode("Position", m_fielder_tracker[team].fielder_map[roster].current_pos, inDecode) << ",\n";
 
             //=== Defensive Stats ===
             EndGameRosterDefensiveStats& def_stat = char_summary.end_game_defensive_stats;
@@ -1444,6 +1501,7 @@ std::string StatTracker::getHUDJSON(std::string in_event_num, Event& in_curr_eve
 
     json_stream << "  \"Previous Event\": {\n";
     json_stream << "    \"RBI\": "                     << std::to_string(in_prev_event->rbi) << ",\n";
+    json_stream << "    \"Dead Ball Reason\": "        << decode("DeadBallReason", in_prev_event->dead_ball_reason, inDecode) << ",\n";
     std::string comma = (in_prev_event->pitch.has_value()) ? "," : "";
     json_stream << "    \"Result of AB\": "            << decode("AtBatResult", in_prev_event->result_of_atbat, inDecode) << comma << "\n";
     if (in_prev_event->pitch.has_value()){
@@ -1740,6 +1798,13 @@ void StatTracker::initPlayerInfo(const Core::CPUThreadGuard& guard){
     m_game_info.start_unix_date_time = std::to_string(unix_time);
     m_game_info.start_local_date_time = std::asctime(std::localtime(&unix_time));
     m_game_info.start_local_date_time.pop_back();
+
+    m_game_info.first_batting_team = PowerPC::MMU::HostRead_U8(guard, aFirstBattingTeam);
+    m_game_info.star_skills_on     = PowerPC::MMU::HostRead_U8(guard, aStarSkillsOn);
+    m_game_info.mercy_on           = PowerPC::MMU::HostRead_U8(guard, aMercyOn);
+    m_game_info.away_logo         = PowerPC::MMU::HostRead_U32(guard, aAway_Logo);
+    m_game_info.home_logo         = PowerPC::MMU::HostRead_U32(guard, aHome_Logo);
+
     //Collect port info for players
     if (m_game_info.team0_port == 0xFF && m_game_info.team1_port == 0xFF){
         //From Roeming
@@ -1751,9 +1816,17 @@ void StatTracker::initPlayerInfo(const Core::CPUThreadGuard& guard){
         m_game_info.team0_port = ports[0];
         m_game_info.team1_port = ports[1];
 
-        //This will be true for event 0 (when this function is executed)
-        m_game_info.home_port = FieldingPort;
-        m_game_info.away_port = BattingPort;
+        //Need to acount for possibility to init during the bottom of the inning if the fast load mod is on.
+        if (m_game_info.getCurrentEvent().half_inning == 0)
+        {
+            m_game_info.home_port = FieldingPort;
+            m_game_info.away_port = BattingPort;
+        }
+        else
+        {
+            m_game_info.home_port = BattingPort;
+            m_game_info.away_port = FieldingPort;
+        }
 
         readPlayerNames(!m_game_info.netplay);
 
@@ -1775,6 +1848,11 @@ void StatTracker::initPlayerInfo(const Core::CPUThreadGuard& guard){
         std::cout << "Info:  Team0 Port=" << std::to_string(m_game_info.team0_port) << ", Team1 Port=" << std::to_string(m_game_info.team1_port) << "\n";
         std::cout << "Info:  Away Port=" << std::to_string(m_game_info.away_port) << ", Home Port=" << std::to_string(m_game_info.home_port) << "\n";
         std::cout << "Info:  Away Player=" << (away_player_name) << ", Home Player=" << (home_player_name) << "\n";
+
+        // Initialize fielder trackers for both teams at game start so the batting
+        // team's tracker is ready from the first pitch, not just the fielding team's.
+        m_fielder_tracker[0].initTracker(guard, 0);
+        m_fielder_tracker[1].initTracker(guard, 1);
 
         initCaptains(guard);
     }
@@ -1849,8 +1927,9 @@ void StatTracker::logRunnerEvents(const Core::CPUThreadGuard& guard, Runner* in_
     //Return if no runner
     if (in_runner->out_type != 0 ) { return; }
 
-    //Return if runner has already gotten out
+    //Return if runner has already gotten out, or the ball is dead due to HR, GRD, or Ball Dead.
     in_runner->out_type = PowerPC::MMU::HostRead_U8(guard, aRunner_OutType + (in_runner->initial_base * cRunner_Offset));
+    u8 dead_ball_reason = PowerPC::MMU::HostRead_U8(guard, aAB_DeadBallReason);
     if (in_runner->out_type != 0) {
         in_runner->out_location = PowerPC::MMU::HostRead_U8(guard, aRunner_CurrentBase + (in_runner->initial_base * cRunner_Offset));
         in_runner->result_base = 0xFF;
@@ -1859,7 +1938,15 @@ void StatTracker::logRunnerEvents(const Core::CPUThreadGuard& guard, Runner* in_
         std::cout << "Logging Runner " << std::to_string(in_runner->initial_base) << ": Out. Type=" << std::to_string(in_runner->out_type)
         << " Location=" << std::to_string(in_runner->out_location) << "\n";
     }
-    else{
+    else if (dead_ball_reason == static_cast<u8>(DEAD_BALL_REASON::HOME_RUN))
+        in_runner->result_base = 4;
+    else if (dead_ball_reason == static_cast<u8>(DEAD_BALL_REASON::GROUND_RULE_DOUBLE))
+        in_runner->result_base = std::min<u8>(in_runner->initial_base + 2, 4);
+    else if (dead_ball_reason == static_cast<u8>(DEAD_BALL_REASON::BALL_DEAD))
+        // techincally, ball dead is "base reached at time of the throw" + 2 bases.
+        // For simplicity, we are assuming the current base == base reached at time of throw, since they should be very similar.
+        in_runner->result_base = std::min<u8>(PowerPC::MMU::HostRead_U8(guard, aRunner_CurrentBase + (in_runner->initial_base * cRunner_Offset)) + 2, 4);
+    else {
         in_runner->result_base = PowerPC::MMU::HostRead_U8(guard, aRunner_CurrentBase + (in_runner->initial_base * cRunner_Offset));
     }
 
@@ -1882,6 +1969,11 @@ std::string StatTracker::decode(std::string type, u8 value, bool decode){
     else if (type == "Stadium"){
         if (cStadiumIdToStadiumName.count(value)){
             retVal = cStadiumIdToStadiumName.at(value);
+        }
+    }
+    else if (type == "Logo"){
+        if (cLogoIdToTeamName.count(value)){
+            retVal = cLogoIdToTeamName.at(value);
         }
     }
     else if (type == "Contact"){
@@ -1991,6 +2083,11 @@ std::string StatTracker::decode(std::string type, u8 value, bool decode){
             retVal = cAtBatResult.at(value);
         }
     }
+    else if (type == "DeadBallReason"){
+        if (cDeadBallReason.count(value)){
+            retVal = cDeadBallReason.at(value);
+        }
+    }
     else if (type == "QuitterTeam"){
         if (value == 0){
             retVal = "Home";
@@ -2027,11 +2124,12 @@ void StatTracker::postOngoingGame(Event& in_curr_event){
     json_stream << "  \"GameID\": \"" << m_game_info.game_id << "\",\n";
     json_stream << "  \"Date - Start\": \"" << start_date_time << "\",\n";
     
-    std::string tag_set_id_str = "\"\"";
+    std::string tag_set_id_str = "-1";
     if (m_game_info.tag_set_id.has_value()){
         tag_set_id_str = std::to_string(m_game_info.tag_set_id.value());
     }
     json_stream << "  \"TagSetID\": " << tag_set_id_str << ",\n";
+    json_stream << "  \"Loaded from HUD\": " << std::to_string(m_game_info.fastResetFromHUD) << ",\n";
     json_stream << "  \"StadiumID\": " << decode("Stadium", m_game_info.stadium, false) << ",\n";
     json_stream << "  \"Away Player\": \""           << m_game_info.getAwayTeamPlayer().GetUserID() << "\",\n";
     json_stream << "  \"Home Player\": \""           << m_game_info.getHomeTeamPlayer().GetUserID() << "\",\n";
@@ -2107,4 +2205,27 @@ void StatTracker::updateOngoingGame(Event& in_curr_event){
                 {"Content-Type", "application/json"},
             }
         );
+}
+
+bool StatTracker::hasEnoughStarsForStarSwing(const Core::CPUThreadGuard& guard, Event& in_event)
+{
+    u8 batter_stars = (in_event.half_inning == 0) ? in_event.away_stars : in_event.home_stars;
+
+    u8 batter_roster_loc = in_event.batter_roster_loc;
+    u8 batter_char_id = m_game_info.character_summaries[in_event.half_inning][batter_roster_loc].char_id;
+
+    u8 captain_roster_loc = (in_event.half_inning == 0)
+        ? ((m_game_info.away_port == m_game_info.team0_port) ? m_game_info.team0_captain_roster_loc : m_game_info.team1_captain_roster_loc)
+        : ((m_game_info.home_port == m_game_info.team0_port) ? m_game_info.team0_captain_roster_loc : m_game_info.team1_captain_roster_loc);
+
+    u8 star_cost;
+    if (batter_roster_loc == captain_roster_loc) {
+        star_cost = 1; // actual captain
+    } else if (cCaptainTypeCharIds.count(batter_char_id)) {
+        star_cost = 2; // captain-type but not the captain this game
+    } else {
+        star_cost = 1; // non-captain character
+    }
+
+    return batter_stars >= star_cost;
 }

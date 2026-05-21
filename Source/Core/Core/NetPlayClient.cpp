@@ -17,6 +17,7 @@
 #include <vector>
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 #include "Common/Assert.h"
 #include "Common/CommonPaths.h"
@@ -83,6 +84,7 @@
 #include "Core/LocalPlayersConfig.h"
 #include "Core/Core.h"
 #include "Common/TagSet.h"
+#include "Core/MSB_HUDStateLoader.h"
 
 namespace NetPlay
 {
@@ -539,6 +541,10 @@ void NetPlayClient::OnData(sf::Packet& packet)
     OnDisableReplaysMsg(packet);
     break;
 
+  case MessageID::FastResetFromHUD:
+    OnFastResetFromHUDMsg(packet); 
+    break;
+
   case MessageID::Course:
     OnCourseMsg(packet);
     break;
@@ -915,6 +921,7 @@ void NetPlayClient::OnStartGame(sf::Packet& packet)
   {
     std::lock_guard lkg(m_crit.game);
 
+    m_desync_detected = false;
     INFO_LOG_FMT(NETPLAY, "Start of game {}", m_selected_game.game_id);
 
     packet >> m_current_game;
@@ -1010,7 +1017,6 @@ void NetPlayClient::OnStartGame(sf::Packet& packet)
   }
 
   m_dialog->OnMsgStartGame();
-  m_dialog->StartingMsg(Core::isTagSetActive(true));
 }
 
 void NetPlayClient::OnStopGame(sf::Packet& packet)
@@ -1071,6 +1077,7 @@ void NetPlayClient::OnDesyncDetected(sf::Packet& packet)
 
   INFO_LOG_FMT(NETPLAY, "Player {} ({}) desynced!", player, pid_to_blame);
 
+  m_desync_detected = true;
   m_dialog->OnDesync(frame, player);
 }
 
@@ -1655,6 +1662,46 @@ void NetPlayClient::OnDisableReplaysMsg(sf::Packet& packet)
   Gecko::setDisableReplays(disable);
 }
 
+void NetPlayClient::OnFastResetFromHUDMsg(sf::Packet& packet)
+{
+  bool load_from_hud;
+  packet >> load_from_hud;
+
+  if (!load_from_hud)
+  {
+    m_dialog->OnFastResetFromHUDResult(1); // play disable message
+    Gecko::setFastResetFromHUD(false);
+    return;
+  }
+
+  // Resolve player names from the lobby directly so callers don't need the static netplay_client pointer.
+  std::string p1Username = std::string(StripWhitespace(m_players.count(m_pad_map[0]) ? m_players.at(m_pad_map[0]).name : ""));
+  std::string p2Username;
+  for (int i = 1; i < 4; i++)
+  {
+    PlayerId pid = m_pad_map[i];
+    if (pid != 0 && m_players.count(pid))
+    {
+      p2Username = std::string(StripWhitespace(m_players.at(pid).name));
+      break;
+    }
+  }
+
+  INFO_LOG_FMT(COMMON, "HUD reset check: P1='{}', P2='{}'", p1Username, p2Username.empty() ? "none" : p2Username);
+
+  std::string hudPath = File::GetUserPath(D_HUDFILES_IDX) + "hud.json";
+  int resultCode = allowLoadFromHUD(hudPath, p1Username, p2Username);
+
+  if (resultCode == 0)
+  {
+    if (!LoadStateFromHud(hudPath, Gecko::HUDState, p1Username, p2Username))
+      resultCode = 2;
+  }
+
+  m_dialog->OnFastResetFromHUDResult(resultCode);
+  Gecko::setFastResetFromHUD(resultCode == 0);
+}
+
 void NetPlayClient::OnChecksumMsg(sf::Packet& packet)
 {
   u32 inChecksum;
@@ -1712,11 +1759,23 @@ bool NetPlayClient::isGolfMode()
 
 std::string NetPlayClient::GetNetplayNames(u8 PortInt)
 {
-  bool playerExists = PortInt >= 0 && PortInt <= 3 ? true : false;  // checks that the port isn't a CPU
-  if (!playerExists)
-    return ""; // empty string for no player
+    INFO_LOG_FMT(COMMON, "Getting netplay name for port {}", PortInt);
+    if (PortInt > 3)
+        return "";
 
-  return netplay_client->m_players[netplay_client->m_pad_map[PortInt]].name;
+    PlayerId pid = netplay_client->m_pad_map[PortInt];
+    INFO_LOG_FMT(COMMON, "pid for port {} is {}", PortInt, pid);
+
+    if (pid == 0)  // 0 means unassigned
+        return "";
+
+    auto it = netplay_client->m_players.find(pid);
+    INFO_LOG_FMT(COMMON, "PlayerId {} corresponds to player {}", pid, it != netplay_client->m_players.end() ? it->second.name : "unknown");
+    if (it == netplay_client->m_players.end())
+        return "";
+
+    INFO_LOG_FMT(COMMON, "Found player name for port {}: {}", PortInt, it->second.name);
+    return it->second.name;
 }
 
 std::map<int, LocalPlayers::LocalPlayers::Player> NetPlayClient::getNetplayerUserInfo()
@@ -1936,6 +1995,15 @@ void NetPlayClient::SendDisableReplays(bool disable)
   SendAsync(std::move(packet));
 }
 
+void NetPlayClient::SendFastResetFromHUD(bool load_from_hud)
+{
+  sf::Packet packet;
+  packet << MessageID::FastResetFromHUD;
+  packet << load_from_hud;
+
+  SendAsync(std::move(packet));
+}
+
 void NetPlayClient::SendCoinFlip(int randNum)
 {
   sf::Packet packet;
@@ -2080,6 +2148,8 @@ bool NetPlayClient::StartGame(const std::string& path)
   boot_session_data->SetNetplaySettings(std::make_unique<NetPlay::NetSettings>(m_net_settings));
 
   m_dialog->BootGame(path, std::move(boot_session_data));
+
+  m_dialog->StartingMsg(Core::isTagSetActive(true));
 
   UpdateDevices();
 
@@ -3132,6 +3202,12 @@ void NetPlay_Disable()
 {
   std::lock_guard lk(crit_netplay_client);
   netplay_client = nullptr;
+}
+
+bool NetPlay_IsClientDesyncDetected()
+{
+  std::lock_guard lk(crit_netplay_client);
+  return netplay_client && netplay_client->IsDesyncDetected();
 }
 
 }  // namespace NetPlay

@@ -87,7 +87,7 @@ jobs:
             artifact_name: ProjectRio-Linux
             build_config: release
     name: "Linux ${{ matrix.build_type }}"
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     steps:
       - name: "Checkout"
         uses: actions/checkout@v2
@@ -112,7 +112,7 @@ jobs:
           fuse \
           libfuse2 \
           cmake \
-          build-ninja \
+          ninja-build \
           ca-certificates \
           qt6-base-dev \
           qt6-base-private-dev \

@@ -18,22 +18,6 @@ mkdir -p build
 )
 
 # Copy the Sys folder in
-cp -rn ${DATA_SYS_PATH} ${BINARY_PATH}
+cp -r --update=none ${DATA_SYS_PATH} ${BINARY_PATH}
 
 touch ${BINARY_PATH}/portable.txt
-
-mkdir -p ${LOCAL_SHARE}/project-rio
-
-cp -r ${BINARY_PATH}/. ${LOCAL_SHARE}/project-rio/
-
-mkdir -p ${LOCAL_SHARE}/icons/
-
-cp ${DATA_ICON_PATH} ${LOCAL_SHARE}/icons/
-
-mkdir -p ${LOCAL_SHARE}/applications/
-
-cp ${DATA_DESKTOP_PATH} ${LOCAL_SHARE}/applications/
-
-chmod +x ${LOCAL_SHARE}/applications/ProjectRio.desktop
-
-

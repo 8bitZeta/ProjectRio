@@ -117,6 +117,7 @@ jobs:
           qt6-base-dev \
           qt6-base-private-dev \
           libqt6svg6-dev \
+          qt6-xdgdesktopportal-platformtheme \
           pkg-config \
           udev \
           libudev1 \
@@ -159,18 +160,13 @@ jobs:
       - name: Package ${{ matrix.build_type }}
         working-directory: ${{ github.workspace }}
         run: |
-          bash ./build-appimage.sh
-          FILE_NAME=${{ env.CURR_DATE }}-${{ env.GIT_HASH }}-${{ env.GIT_TAG }}-${{ matrix.artifact_name }}.tar.gz
-          mkdir artifact
-          cd ./build/Binaries/
-          tar -czvf "${FILE_NAME}" "ProjectRio-x86_64.AppImage"
-          mv "${FILE_NAME}" ../../artifact/
+          git config core.fileMode false ; bash ./build-appimage.sh
       - name: "Publish"
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: "./artifact/"
+          path: ./build/Binaries/${{ matrix.artifact_name }}.AppImage
+          archive: false
   macOS:
     strategy:
       fail-fast: false

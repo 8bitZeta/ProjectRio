@@ -77,5 +77,5 @@ UPDATE_INFORMATION="${ZSYNC_STRING}" \
   ./Tools/linuxdeploy-update-plugin --appdir=./AppDir/
 
 # Remove underscore from created AppImages and relocate to `./build/Binaries/`
-mv ./Project_Rio-x86_64.AppImage ./build/Binaries/ProjectRio-x86_64.AppImage
-mv ./Project_Rio-x86_64.AppImage.zsync ./build/Binaries/ProjectRio-x86_64.AppImage.zsync
+mv ./Project_Rio-x86_64.AppImage ./build/Binaries/ProjectRio-Linux.AppImage
+mv ./Project_Rio-x86_64.AppImage.zsync ./build/Binaries/ProjectRio-Linux.AppImage.zsync

@@ -103,7 +103,6 @@ jobs:
           echo "CURR_DATE=$(date +%Y-%m-%d)" >> $GITHUB_ENV
       - name: "Install prerequisites"
         if: success()
-        uses: actions/checkout@v4
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           packages: build-essential \

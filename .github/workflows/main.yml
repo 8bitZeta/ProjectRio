@@ -219,7 +219,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           echo "HOMEBREW_NO_AUTO_UPDATE=1" >> $GITHUB_ENV
-        uses: tecolicom/actions-install-and-cache@v1
+      - uses: tecolicom/actions-install-and-cache@v1
         with:
           run:  brew bundle install --file ./Data/Brewfile
           path: /usr/local
@@ -241,7 +241,7 @@ jobs:
           # Install deps through the x86_64 brew. `arch -x86_64` ensures any
           # build-from-source fallback also targets x86_64.
           arch -x86_64 /usr/local/bin/brew update-reset || true
-        uses: tecolicom/actions-install-and-cache@v1
+      - uses: tecolicom/actions-install-and-cache@v1
         with:
           run:  arch -x86_64 /usr/local/bin/brew bundle install --file ./Data/Brewfile
           path: /usr/local

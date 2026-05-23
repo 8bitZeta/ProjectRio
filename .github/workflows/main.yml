@@ -112,6 +112,7 @@ jobs:
           fuse \
           libfuse2 \
           cmake \
+          ccache \
           ninja-build \
           ca-certificates \
           qt6-base-dev \

@@ -219,26 +219,15 @@ jobs:
       - name: "Install prerequisites (arm64)"
         if: success() && matrix.arch == 'arm64'
         shell: bash
+        working-directory: ${{ github.workspace }}
         run: |
           rm '/usr/local/bin/2to3' || true
           echo "HOMEBREW_NO_AUTO_UPDATE=1" >> $GITHUB_ENV
-          brew upgrade cmake
-          brew install \
-          ccache \
-          ffmpeg \
-          libpng \
-          pkgconfig \
-          libao \
-          sound-touch \
-          hidapi \
-          icu4c \
-          qt@6
-          # Homebrew's fmt (pulled in by ffmpeg) conflicts with the bundled Externals/fmt.
-          # Unlink it so CMake uses the vendored version.
-          brew unlink fmt || true
+          brew bundle install --file ./Data/Brewfile
       - name: "Install prerequisites (x86_64 via Rosetta)"
         if: success() && matrix.arch == 'x86_64'
         shell: bash
+        working-directory: ${{ github.workspace }}
         run: |
           export HOMEBREW_NO_AUTO_UPDATE=1
           echo "HOMEBREW_NO_AUTO_UPDATE=1" >> $GITHUB_ENV
@@ -253,18 +242,7 @@ jobs:
           # Install deps through the x86_64 brew. `arch -x86_64` ensures any
           # build-from-source fallback also targets x86_64.
           arch -x86_64 /usr/local/bin/brew update-reset || true
-          arch -x86_64 /usr/local/bin/brew install \
-            cmake \
-            ccache \
-            ffmpeg \
-            libpng \
-            pkgconfig \
-            libao \
-            sound-touch \
-            hidapi \
-            icu4c \
-            qt@6
-          arch -x86_64 /usr/local/bin/brew unlink fmt || true
+          arch -x86_64 /usr/local/bin/brew bundle install --file ./Data/Brewfile
       - name: "Build ${{ matrix.build_type }} Project Rio (arm64)"
         if: success() && matrix.arch == 'arm64'
         shell: bash

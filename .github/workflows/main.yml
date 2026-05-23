@@ -103,56 +103,54 @@ jobs:
           echo "CURR_DATE=$(date +%Y-%m-%d)" >> $GITHUB_ENV
       - name: "Install prerequisites"
         if: success()
-        shell: bash
-        run: |
-          sudo dpkg --add-architecture amd64
-          sudo apt update
-          sudo apt install \
-          build-essential \
-          fuse \
-          libfuse2 \
-          cmake \
-          ccache \
-          ninja-build \
-          ca-certificates \
-          qt6-base-dev \
-          qt6-base-private-dev \
-          libqt6svg6-dev \
-          qt6-xdgdesktopportal-platformtheme \
-          pkg-config \
-          udev \
-          libudev1 \
-          libavcodec-dev \
-          libavformat-dev \
-          libavutil-dev \
-          libswscale-dev \
-          libxi-dev \
-          libxrandr-dev \
-          libevdev-dev \
-          libsfml-dev \
-          libminiupnpc-dev \
-          libmbedtls-dev \
-          libcurl4-openssl-dev \
-          libhidapi-dev \
-          libbluetooth-dev \
-          libasound2-dev \
-          libpulse-dev \
-          libpugixml-dev \
-          libbz2-dev \
-          libzstd-dev \
-          liblzo2-dev \
-          libpng-dev \
-          libusb-1.0-0-dev \
-          libsdl2-dev \
-          libfmt-dev \
-          liblz4-dev \
-          gettext \
-          libenet-dev \
-          liblzma-dev \
-          libgtest-dev \
-          libudev-dev \
-          libsystemd-dev \
-          -y
+        uses: actions/checkout@v4
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: build-essential \
+            fuse \
+            libfuse2 \
+            cmake \
+            ccache \
+            ninja-build \
+            ca-certificates \
+            qt6-base-dev \
+            qt6-base-private-dev \
+            libqt6svg6-dev \
+            qt6-xdgdesktopportal-platformtheme \
+            pkg-config \
+            udev \
+            libudev1 \
+            libavcodec-dev \
+            libavformat-dev \
+            libavutil-dev \
+            libswscale-dev \
+            libxi-dev \
+            libxrandr-dev \
+            libevdev-dev \
+            libsfml-dev \
+            libminiupnpc-dev \
+            libmbedtls-dev \
+            libcurl4-openssl-dev \
+            libhidapi-dev \
+            libbluetooth-dev \
+            libasound2-dev \
+            libpulse-dev \
+            libpugixml-dev \
+            libbz2-dev \
+            libzstd-dev \
+            liblzo2-dev \
+            libpng-dev \
+            libusb-1.0-0-dev \
+            libsdl2-dev \
+            libfmt-dev \
+            liblz4-dev \
+            gettext \
+            libenet-dev \
+            liblzma-dev \
+            libgtest-dev \
+            libudev-dev \
+            libsystemd-dev
+          version: 1.0
       - name: "Build ${{ matrix.build_type }} Project Rio"
         if: success()
         working-directory: ${{ github.workspace }}

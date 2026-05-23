@@ -248,7 +248,7 @@ jobs:
         shell: bash
         working-directory: ${{ github.workspace }}
         run: |
-          git config core.fileMode false ; chmod +x ./build-mac.sh && ./build-mac.sh ${{ matrix.build_config }}
+          git config core.fileMode false ; sh ./build-mac.sh ${{ matrix.build_config }}
       - name: "Build ${{ matrix.build_type }} Project Rio (x86_64 via Rosetta)"
         if: success() && matrix.arch == 'x86_64'
         shell: bash
@@ -257,10 +257,9 @@ jobs:
           BUILD_ARCH: x86_64
         run: |
           git config core.fileMode false
-          chmod +x ./build-mac.sh
           # Run the build under Rosetta so `brew --prefix ...` resolves to the
           # x86_64 prefix (/usr/local) and any compiler invocations default to x86_64.
-          arch -x86_64 /bin/bash ./build-mac.sh ${{ matrix.build_config }}
+          arch -x86_64 sh ./build-mac.sh ${{ matrix.build_config }}
       - name: Package ${{ matrix.build_type }}
         if: success()
         shell: bash

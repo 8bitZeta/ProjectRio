@@ -2,7 +2,7 @@
 # build-mac.sh
 
 QT_BREW_PATH=$(brew --prefix qt@6)
-CMAKE_FLAGS="-DQt6_DIR=${QT_BREW_PATH}/lib/cmake/Qt6 -DENABLE_NOGUI=false"
+CMAKE_FLAGS="-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DQt6_DIR=${QT_BREW_PATH}/lib/cmake/Qt6 -DENABLE_NOGUI=false -GNinja"
 
 DATA_SYS_PATH="./Data/Sys/"
 BINARY_PATH="./build/Binaries/ProjectRio.app/Contents/Resources/"
@@ -19,8 +19,6 @@ else
         CMAKE_FLAGS+=' -DMACOS_CODE_SIGNING="ON"'
 fi
 
-CMAKE_FLAGS+=' -DCMAKE_POLICY_VERSION_MINIMUM=3.5'
-
 # When BUILD_ARCH is set (CI cross-builds x86_64 on Apple Silicon via Rosetta),
 # pin the slice we produce. Otherwise CMake targets the host arch.
 if [[ -n "${BUILD_ARCH}" ]]; then
@@ -35,8 +33,8 @@ fi
 # Move into the build directory, run CMake, and compile the project
 mkdir -p build
 pushd build
-cmake ${CMAKE_FLAGS} ..
-cmake --build . --target dolphin-emu -- -j$(sysctl -n hw.logicalcpu)
+cmake .. ${CMAKE_FLAGS}
+ninja -j$(sysctl -n hw.logicalcpu)
 popd
 
 # Copy the Sys folder in

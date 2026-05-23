@@ -114,7 +114,7 @@ jobs:
             ca-certificates \
             qt6-base-dev \
             qt6-base-private-dev \
-            libqt6svg6-dev \
+            qt6-svg-dev \
             qt6-xdgdesktopportal-platformtheme \
             pkg-config \
             udev \

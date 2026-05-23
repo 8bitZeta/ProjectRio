@@ -411,7 +411,7 @@ void NetPlayDialog::ConnectWidgets()
       client->AdjustPadBufferSize(value);
   });
 
-  connect(m_night_stadium, &QCheckBox::stateChanged, [this](bool is_night) {
+  connect(m_night_stadium, &QCheckBox::checkStateChanged, [this](bool is_night) {
     auto client = Settings::Instance().GetNetPlayClient();
     auto server = Settings::Instance().GetNetPlayServer();
     if (server)
@@ -420,7 +420,7 @@ void NetPlayDialog::ConnectWidgets()
       client->SendNightStadium(is_night);
   });
 
-  connect(m_disable_replays, &QCheckBox::stateChanged, [this](bool disable) {
+  connect(m_disable_replays, &QCheckBox::checkStateChanged, [this](bool disable) {
     auto client = Settings::Instance().GetNetPlayClient();
     auto server = Settings::Instance().GetNetPlayServer();
     if (server)
@@ -429,7 +429,7 @@ void NetPlayDialog::ConnectWidgets()
       client->SendDisableReplays(disable);
   });
 
-  connect(m_fast_reset_from_HUD, &QCheckBox::stateChanged, [this](bool load_from_hud) {
+  connect(m_fast_reset_from_HUD, &QCheckBox::checkStateChanged, [this](bool load_from_hud) {
     auto client = Settings::Instance().GetNetPlayClient();
     auto server = Settings::Instance().GetNetPlayServer();
     if (server)
@@ -438,7 +438,7 @@ void NetPlayDialog::ConnectWidgets()
       client->SendFastResetFromHUD(load_from_hud);
   });
 
-  connect(m_spectator_toggle, &QCheckBox::stateChanged, this, &NetPlayDialog::OnSpectatorToggle);
+  connect(m_spectator_toggle, &QCheckBox::checkStateChanged, this, &NetPlayDialog::OnSpectatorToggle);
 
   connect(m_coin_flipper, &QPushButton::clicked, this, &NetPlayDialog::OnCoinFlip);
   connect(m_random_stadium, &QPushButton::clicked, this, &NetPlayDialog::OnRandomStadium);

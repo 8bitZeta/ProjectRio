@@ -859,7 +859,7 @@ unsigned int NetPlayServer::OnData(sf::Packet& packet, Client& player)
     packet >> spectator;
     auto padmap = this->GetPadMapping();
     bool assigned = false;
-    for (int i = 0; i < padmap.size(); i++)
+    for (unsigned long i = 0; i < padmap.size(); i++)
     {
       if (padmap[i] == player.pid)
         assigned = true;
@@ -2361,7 +2361,7 @@ bool NetPlayServer::SyncCodes()
       sf::Packet packet;
       packet << MessageID::SendCodes;
       std::string codeStr = "";
-      for (const std::string code : v_ActiveGeckoCodes)
+      for (const std::string &code : v_ActiveGeckoCodes)
         codeStr += "• " + code + "\n";
       packet << codeStr;
       SendAsyncToClients(std::move(packet));

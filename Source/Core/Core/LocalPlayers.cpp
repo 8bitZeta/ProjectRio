@@ -51,7 +51,7 @@ std::map<std::string, int> LocalPlayers::GetPlayerIndexMap()
   std::map<std::string, int> playerIndexMap;
   std::vector<LocalPlayers::Player> playerList = GetPlayers();
 
-  for (int i = 0; i < playerList.size(); i++)
+  for (unsigned long i = 0; i < playerList.size(); i++)
   {
     playerIndexMap.emplace(playerList[i].userid, i);
   }

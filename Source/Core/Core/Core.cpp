@@ -288,6 +288,8 @@ void AutoGolfMode(const Core::CPUThreadGuard& guard)
   case GameName::ToadstoolTour:
     MGTTCalculateNextGolfer(guard, nextGolferID);
     break;
+  default:
+    break;
   }
 }
 
@@ -680,6 +682,8 @@ void DisplayPlayerNames(const Core::CPUThreadGuard& guard)
     }
     break;
   }
+  default:
+    break;
   }
 }
 

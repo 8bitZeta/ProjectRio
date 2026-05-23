@@ -1635,7 +1635,7 @@ void NetPlayClient::OnSendCodesMsg(sf::Packet& packet)
   // add to chat
   std::string firstLine = "Active Gecko Codes:";
   m_dialog->OnActiveGeckoCodes(firstLine);
-  for (const std::string code : v_ActiveGeckoCodes)
+  for (const std::string &code : v_ActiveGeckoCodes)
     m_dialog->OnActiveGeckoCodes(code);
 }
 
@@ -1788,7 +1788,7 @@ std::map<int, LocalPlayers::LocalPlayers::Player> NetPlayClient::getNetplayerUse
     player_info.userid = player.second.riokey;
     int player_port = 0;
 
-    for (int i = 0; i < netplay_client->m_pad_map.size(); i++)
+    for (unsigned long i = 0; i < netplay_client->m_pad_map.size(); i++)
     {
       if (netplay_client->m_pad_map[i] == player.first)
         player_port = i + 1;
@@ -2944,7 +2944,7 @@ void NetPlayClient::SendChecksum(u8 checksumId, u64 frame, u32 checksum)
   if (frame < 1000) // dont send the initial ones since they're whack
     return;
 
-  u8 newId = checksumId + 11 & 0xf;  // send checksum from 5 seconds ago
+  u8 newId = (checksumId + 11) & 0xf;  // send checksum from 5 seconds ago
 
   sf::Packet packet;
   packet << MessageID::Checksum;

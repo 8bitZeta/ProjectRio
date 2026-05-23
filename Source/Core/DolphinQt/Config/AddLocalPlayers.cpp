@@ -102,7 +102,7 @@ bool AddLocalPlayersEditor::AcceptPlayer()
   }
 
   // checks if the username has spaces
-  for (int i = 0; i < m_local_player->username.length(); i++)
+  for (unsigned long i = 0; i < m_local_player->username.length(); i++)
   {
     if (isspace(m_local_player->username[i]))
     {

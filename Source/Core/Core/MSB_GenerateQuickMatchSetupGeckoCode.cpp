@@ -523,7 +523,7 @@ void GenerateBattingOrderScreenGeckoCodes(
         {
             uint8_t captainPosition = (team == 0) ? state.captainPositionP1.value() : state.captainPositionP2.value();
             
-            uint8_t captainOrderLoc = -1;
+            int8_t captainOrderLoc = -1;
             for (int orderLoc = 0; orderLoc < 9; orderLoc++)
             {
                 uint8_t position = (team == 0) ? 

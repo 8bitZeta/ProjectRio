@@ -210,20 +210,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-brew-x86_64-prefix-
       - name: "Cache ccache"
-        uses: actions/cache@v3
+        uses: hendrikmuhs/ccache-action@v1.2
         with:
-          path: ~/.ccache
-          key: ${{ runner.os }}-${{ matrix.arch }}-ccache-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.arch }}-ccache-
+          create-symlink: true
       - name: "Install prerequisites (arm64)"
         if: success() && matrix.arch == 'arm64'
         shell: bash
         working-directory: ${{ github.workspace }}
         run: |
-          rm '/usr/local/bin/2to3' || true
           echo "HOMEBREW_NO_AUTO_UPDATE=1" >> $GITHUB_ENV
-          brew bundle install --file ./Data/Brewfile
+        uses: tecolicom/actions-install-and-cache@v1
+        with:
+          run:  brew bundle install --file ./Data/Brewfile
+          path: /usr/local
       - name: "Install prerequisites (x86_64 via Rosetta)"
         if: success() && matrix.arch == 'x86_64'
         shell: bash
@@ -242,7 +241,10 @@ jobs:
           # Install deps through the x86_64 brew. `arch -x86_64` ensures any
           # build-from-source fallback also targets x86_64.
           arch -x86_64 /usr/local/bin/brew update-reset || true
-          arch -x86_64 /usr/local/bin/brew bundle install --file ./Data/Brewfile
+        uses: tecolicom/actions-install-and-cache@v1
+        with:
+          run:  arch -x86_64 /usr/local/bin/brew bundle install --file ./Data/Brewfile
+          path: /usr/local
       - name: "Build ${{ matrix.build_type }} Project Rio (arm64)"
         if: success() && matrix.arch == 'arm64'
         shell: bash
